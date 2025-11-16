@@ -1,0 +1,261 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    NOTIMANAGER FILE STRUCTURE DESIGN                         ║
+║                              Agent 18 Report                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  FILE STRUCTURE OVERVIEW (60 files organized into 6 layers)                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Notimanager/
+│
+├── 📱 App/                              ← Application Entry Point
+│   ├── NotimanagerApp.swift             (@main, app delegate)
+│   └── ServiceContainer.swift           (DI container)
+│
+├── 💎 Core/                             ← Foundation Layer (12 files)
+│   ├── 📦 Models/                       (Domain models)
+│   │   ├── NotificationPosition.swift   (Position enum)
+│   │   ├── NotificationWindow.swift     (Tracked window model)
+│   │   ├── NotificationMovementState.swift (State machine)
+│   │   ├── ConfigurationSettings.swift  (Settings model)
+│   │   └── SizeConstraints.swift        (Size constraints)
+│   │
+│   ├── 📝 Protocols/                    (6 protocol files)
+│   │   ├── AccessibilityProtocols.swift
+│   │   ├── PositioningProtocols.swift
+│   │   ├── MonitoringProtocols.swift
+│   │   ├── UIProtocols.swift
+│   │   ├── PermissionProtocols.swift
+│   │   └── NotificationProtocols.swift
+│   │
+│   ├── ⚠️  Errors/                      (3 error files)
+│   │   ├── NotificationMoverErrors.swift
+│   │   ├── AccessibilityErrors.swift
+│   │   └── ConfigurationErrors.swift
+│   │
+│   └── 🔄 State/                        (State management)
+│       ├── NotificationMoverStateMachine.swift
+│       └── StatePersistence.swift
+│
+├── ⚙️  Services/                        ← Business Logic (18 files)
+│   ├── 🔍 Accessibility/
+│   │   ├── AccessibilityAPIService.swift
+│   │   ├── NotificationDetectionService.swift
+│   │   └── AXElementOperations.swift
+│   │
+│   ├── 📍 Positioning/
+│   │   ├── NotificationPositioningService.swift
+│   │   └── Strategies/
+│   │       ├── PositioningStrategy.swift
+│   │       ├── TopLeftStrategy.swift
+│   │       ├── CenterStrategy.swift
+│   │       └── EdgeStrategy.swift
+│   │
+│   ├── 👁  Monitoring/
+│   │   ├── WindowMonitorService.swift
+│   │   ├── WidgetMonitorService.swift
+│   │   └── NotificationLifecycleService.swift
+│   │
+│   ├── 🔐 Permissions/
+│   │   └── AccessibilityPermissionService.swift
+│   │
+│   ├── 🖥  UI/
+│   │   ├── MenuBarManager.swift
+│   │   └── SettingsManager.swift
+│   │
+│   └── 🔧 Diagnostics/
+│       ├── DiagnosticService.swift
+│       └── PerformanceMonitor.swift
+│
+├── 🎯 Features/                         ← Feature Coordinators (7 files)
+│   ├── 🔔 NotificationMoving/
+│   │   ├── NotificationMover.swift      (Refactored: 3,013 → 800 lines!)
+│   │   ├── NotificationMoverCoordinator.swift
+│   │   └── NotificationMoverDelegate.swift
+│   │
+│   ├── ⚙️  Configuration/
+│   │   └── ConfigurationManager.swift
+│   │
+│   ├── ♿ Accessibility/
+│   │   ├── AccessibilityManager.swift
+│   │   └── VoiceOverAnnouncer.swift
+│   │
+│   └── 🎨 Theme/
+│       ├── ThemeManager.swift
+│       └── AppearanceManager.swift
+│
+├── 🖼  Presentation/                    ← UI Layer (14 files)
+│   ├── 🪟 Windows/
+│   │   ├── Settings/
+│   │   │   ├── SettingsWindow.swift
+│   │   │   └── ModernSettingsWindow.swift
+│   │   ├── Permissions/
+│   │   │   └── PermissionWindow.swift
+│   │   ├── About/
+│   │   │   └── AboutWindow.swift
+│   │   └── Diagnostics/
+│   │       └── DiagnosticWindow.swift
+│   │
+│   ├── 🧩 Components/
+│   │   ├── PositionGridButton.swift
+│   │   ├── ThemePicker.swift
+│   │   └── StatusIndicator.swift
+│   │
+│   └── 🎨 DesignSystem/
+│       ├── DesignTokens.swift
+│       └── LiquidGlassCard.swift
+│
+├── 🏗  Infrastructure/                  ← Cross-Cutting (8 files)
+│   ├── 📋 Logging/
+│   │   ├── LoggingService.swift
+│   │   └── Loggers.swift
+│   │
+│   ├── 💾 Persistence/
+│   │   ├── UserDefaultsStore.swift
+│   │   └── CacheManager.swift
+│   │
+│   ├── ⌨️  Keyboard/
+│   │   ├── KeyboardNavigationManager.swift
+│   │   └── ArrowKeyNavigationHandler.swift
+│   │
+│   └── 🔧 Utilities/
+│       ├── AnimationHelper.swift
+│       ├── AXErrorFormatter.swift
+│       └── IconManager.swift
+│
+└── 📦 Resources/                       ← Assets & Configs
+    ├── Assets.xcassets/
+    ├── MenuBarIcon/
+    ├── Icons/
+    └── Configuration/
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  LAYER DEPENDENCIES (Bottom-Up Architecture)                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────────┐
+    │   Presentation      │  ← Views, Components, Windows
+    │   (UI Layer)        │     No dependencies on business logic
+    └──────────┬──────────┘
+               │ depends on
+    ┌──────────▼──────────┐
+    │     Features        │  ← Coordinators, Orchestrators
+    │  (Feature Layer)    │     Coordinates services & UI
+    └──────────┬──────────┘
+               │ depends on
+    ┌──────────▼──────────┐
+    │     Services        │  ← Business Logic
+    │  (Service Layer)    │     Core operations & calculations
+    └──────────┬──────────┘
+               │ depends on
+    ┌──────────▼──────────┐
+    │       Core          │  ← Models, Protocols, Errors
+    │   (Core Layer)      │     Foundation types
+    └──────────┬──────────┘
+               │ depends on
+    ┌──────────▼──────────┐
+    │  Infrastructure     │  ← Logging, Persistence, Utilities
+    │  (Infra Layer)      │     Cross-cutting concerns
+    └─────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  MIGRATION STRATEGY (5 Phases)                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Phase 1: Create Folders          ✓ Safe (no code changes)
+  ────────────────────────────────────────────────────────────────────────────
+  mkdir -p Core/{Models,Protocols,Errors,State}
+  mkdir -p Services/{Accessibility,Positioning,Monitoring,Permissions,UI,Diagnostics}
+  mkdir -p Features/{NotificationMoving,Configuration,Accessibility,Theme}
+  mkdir -p Presentation/{Windows,Components,DesignSystem}
+  mkdir -p Infrastructure/{Logging,Persistence,Keyboard,Utilities}
+
+  Phase 2: Move Files              ⚠️  Moderate (update Xcode)
+  ────────────────────────────────────────────────────────────────────────────
+  mv Managers/* → Services/
+  mv Views/* → Presentation/Windows/
+  mv Components/* → Presentation/Components/
+  mv Utils/* Utilities/* → Infrastructure/
+
+  Phase 3: Split Protocols          ⚠️  Moderate (update imports)
+  ────────────────────────────────────────────────────────────────────────────
+  NotificationMoverProtocols.swift (204 lines)
+    ↓
+  AccessibilityProtocols.swift
+  PositioningProtocols.swift
+  MonitoringProtocols.swift
+  UIProtocols.swift
+  PermissionProtocols.swift
+  NotificationProtocols.swift
+
+  Phase 4: Extract Code            🔥 Complex (refactoring)
+  ────────────────────────────────────────────────────────────────────────────
+  NotificationMover.swift (3,013 lines)
+    ↓ Extract
+  ├─→ Services/Accessibility/NotificationDetectionService.swift (~600 lines)
+  ├─→ Services/Diagnostics/DiagnosticService.swift (~570 lines)
+  ├─→ Core/State/NotificationMoverStateMachine.swift (~150 lines)
+  ├─→ Core/Models/NotificationWindow.swift (~80 lines)
+  └─→ NotificationMover.swift (~800 lines remaining)
+
+  Phase 5: Cleanup & Update        ⚠️  Moderate (testing)
+  ────────────────────────────────────────────────────────────────────────────
+  - Update all imports
+  - Update Xcode project
+  - Build & test
+  - Update documentation
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  KEY METRICS                                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  BEFORE → AFTER comparison:
+
+  NotificationMover.swift:
+    3,013 lines ──────────────→ ~800 lines (73% reduction!) 🎉
+
+  Total Files:
+    25 files ─────────────────→ ~60 files (+35 new files)
+
+  Folder Depth:
+    2 levels ─────────────────→ 4 levels (clear hierarchy)
+
+  Manager Folder:
+    11 files (mixed) ─────────→ Organized into 6 service categories
+
+  Code Organization:
+    Flat structure ───────────→ Layered architecture
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  SUCCESS CRITERIA                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  ✅ Folder structure matches design
+  ✅ All files compile without errors
+  ✅ No runtime regressions
+  ✅ Clean git history with phase commits
+  ✅ NotificationMover.swift < 1,000 lines
+  ✅ Clear separation of concerns
+  ✅ Testable architecture
+  ✅ Scalable for future features
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  NEXT AGENTS                                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Agent 19: Execute Phase 1 (Folder Creation) & Phase 2 (File Movement)
+  Agent 20: Execute Phase 3 (Protocol Split) & Phase 4 (Code Extraction)
+  Agent 21: Execute Phase 5 (Cleanup & Update)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  READY FOR EXECUTION                                                          ║
+║  Full documentation: AGENT_18_FILE_STRUCTURE_DESIGN.md                       ║
+║  Quick reference: STRUCTURE_QUICK_REFERENCE.md                               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
