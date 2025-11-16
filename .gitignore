@@ -1,0 +1,44 @@
+# Build artifacts
+*.app
+*.tar.gz
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Debug and temporary files
+debug_*.sh
+inspect_*.py
+inspect_*.swift
+monitor_*.sh
+get_logs.sh
+*.scpt
+*_logs_*.txt
+DEBUG_TOOLS_README.md
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+.build/
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.swiftpm/
+
+# Backup files
+*.backup
