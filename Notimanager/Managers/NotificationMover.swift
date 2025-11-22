@@ -1,36 +1,25 @@
+//
+//  NotificationMover.swift
+//  Notimanager
+//
+//  Created on 2025-11-16.
+//
+
 import ApplicationServices
 import Cocoa
 import os.log
 import UserNotifications
 
-enum NotificationPosition: String, CaseIterable {
-    case topLeft, topMiddle, topRight
-    case middleLeft, deadCenter, middleRight
-    case bottomLeft, bottomMiddle, bottomRight
-
-    var displayName: String {
-        switch self {
-        case .topLeft: return "Top Left"
-        case .topMiddle: return "Top Middle"
-        case .topRight: return "Top Right"
-        case .middleLeft: return "Middle Left"
-        case .deadCenter: return "Middle"
-        case .middleRight: return "Middle Right"
-        case .bottomLeft: return "Bottom Left"
-        case .bottomMiddle: return "Bottom Middle"
-        case .bottomRight: return "Bottom Right"
-        }
-    }
-}
-
 class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let notificationCenterBundleID: String = "com.apple.notificationcenterui"
     private let paddingAboveDock: CGFloat = 30
+    private let widgetIdentifierPrefix: String = "widget-local:"
     private var axObserver: AXObserver?
     private var statusItem: NSStatusItem?
     private var isMenuBarIconHidden: Bool = UserDefaults.standard.bool(forKey: "isMenuBarIconHidden")
     private let logger: Logger = .init(subsystem: "dev.abd3lraouf.notimanager", category: "NotificationMover")
     private var debugMode: Bool = UserDefaults.standard.bool(forKey: "debugMode")
+    private var isEnabled: Bool = UserDefaults.standard.object(forKey: "isEnabled") as? Bool ?? true
     private let launchAgentPlistPath: String = NSHomeDirectory() + "/Library/LaunchAgents/dev.abd3lraouf.notimanager.plist"
     private var settingsWindow: NSWindow?
     private var testStatusLabel: NSTextField?
@@ -39,6 +28,7 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var cachedInitialNotifSize: CGSize?
     private var cachedInitialPadding: CGFloat?
+    private var cachedInitialWindowPosition: CGPoint?
 
     private var widgetMonitorTimer: Timer?
     private var lastWidgetWindowCount: Int = 0
@@ -46,6 +36,11 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let osVersion: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
 
     private var hasLoggedEmptyWidget: Bool = false
+
+    // Global window monitoring for external app notifications
+    private var knownWindowNumbers: Set<Int> = []
+    private var globalWindowMonitorTimer: Timer?
+    private var appObservers: [pid_t: AXObserver] = [:]
 
     private lazy var notificationSubroles: [String] = {
         if osVersion.majorVersion >= 26 {
@@ -95,7 +90,12 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_: Notification) {
         logSystemInfo()
         requestNotificationPermissions()
-        checkAccessibilityPermissions()
+        
+        // Delay permission check slightly to allow system to register the app
+        // This is especially important when running from Xcode
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.checkAccessibilityPermissions()
+        }
         setupObserver()
         if !isMenuBarIconHidden {
             setupStatusItem()
@@ -115,6 +115,16 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillBecomeActive(_: Notification) {
+        // Re-check accessibility permissions when app becomes active
+        // This helps detect when user grants permission in System Settings
+        if permissionWindow != nil && permissionWindow?.isVisible == true {
+            let isGranted = AXIsProcessTrusted()
+            if isGranted {
+                debugLog("✓ Permission detected as granted on app activation")
+                updatePermissionStatus(granted: true)
+            }
+        }
+        
         guard isMenuBarIconHidden else { return }
         isMenuBarIconHidden = false
         UserDefaults.standard.set(false, forKey: "isMenuBarIconHidden")
@@ -137,7 +147,14 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func checkAccessibilityPermissions() {
         // Check current permission status without prompting
         let isCurrentlyTrusted = AXIsProcessTrusted()
-        debugLog("Accessibility permission check - Currently trusted: \(isCurrentlyTrusted)")
+        
+        // Enhanced logging for debugging
+        let bundleID = Bundle.main.bundleIdentifier ?? "unknown"
+        let executablePath = Bundle.main.executablePath ?? "unknown"
+        debugLog("=== Accessibility Permission Check ===")
+        debugLog("Bundle ID: \(bundleID)")
+        debugLog("Executable: \(executablePath)")
+        debugLog("Currently trusted: \(isCurrentlyTrusted)")
 
         if isCurrentlyTrusted {
             debugLog("✓ Accessibility permissions already granted")
@@ -145,7 +162,7 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // Not trusted - show permission status window
-        debugLog("Accessibility permissions not granted - showing status window")
+        debugLog("⚠️  Accessibility permissions not granted - showing status window")
         showPermissionStatusWindow()
     }
 
@@ -591,9 +608,17 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         menu.addItem(NSMenuItem.separator())
+        
+        // Enable/Disable toggle
+        let toggleItem = NSMenuItem(title: isEnabled ? "✓ Enabled" : "Disabled", action: #selector(menuBarToggleEnabled(_:)), keyEquivalent: "")
+        toggleItem.state = isEnabled ? .on : .off
+        menu.addItem(toggleItem)
+        menu.addItem(NSMenuItem.separator())
+
 
         // Main actions
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "API Diagnostics...", action: #selector(showDiagnostics), keyEquivalent: "d"))
         menu.addItem(NSMenuItem(title: "About Notimanager", action: #selector(showAbout), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit Notimanager", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -622,11 +647,370 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    @objc private func showDiagnostics() {
+        createDiagnosticWindow()
+    }
+
+    private var diagnosticWindow: NSWindow?
+    private var diagnosticTextView: NSTextView?
+    private var lastNotificationElement: AXUIElement?
+
+    private func createDiagnosticWindow() {
+        let windowWidth: CGFloat = 800
+        let windowHeight: CGFloat = 600
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "API Diagnostics - macOS \(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)"
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
+        window.contentView = contentView
+
+        var yPos: CGFloat = windowHeight - 60
+
+        // Title
+        let titleLabel = NSTextField(labelWithString: "🔬 Notification API Diagnostics")
+        titleLabel.frame = NSRect(x: 20, y: yPos, width: windowWidth - 40, height: 30)
+        titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
+        titleLabel.alignment = .center
+        contentView.addSubview(titleLabel)
+        yPos -= 50
+
+        // System info
+        let infoLabel = NSTextField(labelWithString: "macOS Version: \(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)")
+        infoLabel.frame = NSRect(x: 20, y: yPos, width: windowWidth - 40, height: 20)
+        infoLabel.alignment = .center
+        infoLabel.textColor = .secondaryLabelColor
+        contentView.addSubview(infoLabel)
+        yPos -= 30
+
+        // Test buttons section
+        let buttonSection = NSView(frame: NSRect(x: 20, y: yPos - 150, width: windowWidth - 40, height: 150))
+        buttonSection.wantsLayer = true
+        buttonSection.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        buttonSection.layer?.cornerRadius = 8
+        contentView.addSubview(buttonSection)
+
+        var buttonY: CGFloat = 110
+        let buttonWidth: CGFloat = (windowWidth - 80) / 2
+
+        // Test 1: Scan for notification windows
+        let scanButton = NSButton(frame: NSRect(x: 10, y: buttonY, width: buttonWidth, height: 32))
+        scanButton.title = "🔍 Scan All Windows"
+        scanButton.bezelStyle = .rounded
+        scanButton.target = self
+        scanButton.action = #selector(diagnosticScanWindows)
+        buttonSection.addSubview(scanButton)
+
+        // Test 2: Test Accessibility API
+        let axButton = NSButton(frame: NSRect(x: buttonWidth + 20, y: buttonY, width: buttonWidth, height: 32))
+        axButton.title = "♿️ Test Accessibility API"
+        axButton.bezelStyle = .rounded
+        axButton.target = self
+        axButton.action = #selector(diagnosticTestAccessibility)
+        buttonSection.addSubview(axButton)
+        buttonY -= 40
+
+        // Test 3: Try position setting
+        let posButton = NSButton(frame: NSRect(x: 10, y: buttonY, width: buttonWidth, height: 32))
+        posButton.title = "📍 Try Set Position"
+        posButton.bezelStyle = .rounded
+        posButton.target = self
+        posButton.action = #selector(diagnosticTrySetPosition)
+        buttonSection.addSubview(posButton)
+
+        // Test 4: Capture NC panel info
+        let ncButton = NSButton(frame: NSRect(x: buttonWidth + 20, y: buttonY, width: buttonWidth, height: 32))
+        ncButton.title = "📋 Analyze NC Panel"
+        ncButton.bezelStyle = .rounded
+        ncButton.target = self
+        ncButton.action = #selector(diagnosticAnalyzeNCPanel)
+        buttonSection.addSubview(ncButton)
+        buttonY -= 40
+
+        // Clear button
+        let clearButton = NSButton(frame: NSRect(x: 10, y: buttonY, width: buttonWidth, height: 32))
+        clearButton.title = "🗑️ Clear Output"
+        clearButton.bezelStyle = .rounded
+        clearButton.target = self
+        clearButton.action = #selector(diagnosticClearOutput)
+        buttonSection.addSubview(clearButton)
+
+        yPos -= 180
+
+        // Output text view with scroll
+        let scrollView = NSScrollView(frame: NSRect(x: 20, y: 20, width: windowWidth - 40, height: yPos - 40))
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .bezelBorder
+
+        let textView = NSTextView(frame: scrollView.bounds)
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        scrollView.documentView = textView
+        contentView.addSubview(scrollView)
+
+        diagnosticTextView = textView
+        diagnosticWindow = window
+
+        diagnosticLog("🚀 Diagnostic window initialized")
+        diagnosticLog("⚠️ Send a notification, then click the test buttons to diagnose issues\n")
+
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func diagnosticLog(_ message: String) {
+        guard let textView = diagnosticTextView else { return }
+        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+        let line = "[\(timestamp)] \(message)\n"
+        textView.string += line
+        textView.scrollToEndOfDocument(nil)
+    }
+
+    @objc private func diagnosticClearOutput() {
+        diagnosticTextView?.string = ""
+        diagnosticLog("Output cleared")
+    }
+
+    @objc private func diagnosticScanWindows() {
+        diagnosticLog("🔍 Scanning all windows on screen...")
+
+        let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            diagnosticLog("❌ Failed to get window list")
+            return
+        }
+
+        var notificationCount = 0
+        for window in windowList {
+            guard let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+                  let width = bounds["Width"],
+                  let height = bounds["Height"],
+                  let x = bounds["X"],
+                  let y = bounds["Y"] else {
+                continue
+            }
+
+            // Look for notification-sized windows
+            if width >= 200 && width <= 800 && height >= 60 && height <= 200 {
+                let ownerName = window[kCGWindowOwnerName as String] as? String ?? "Unknown"
+                let windowNumber = window[kCGWindowNumber as String] as? Int ?? -1
+                let layer = window[kCGWindowLayer as String] as? Int ?? -1
+                notificationCount += 1
+                diagnosticLog("  ✓ Found: \(ownerName) [#\(windowNumber)] Layer:\(layer) - \(Int(width))×\(Int(height)) at (\(Int(x)), \(Int(y)))")
+            }
+        }
+
+        if notificationCount == 0 {
+            diagnosticLog("❌ No notification-sized windows found")
+            diagnosticLog("💡 This means notifications are likely ONLY in NC panel (cannot be moved)")
+        } else {
+            diagnosticLog("✅ Found \(notificationCount) potential notification window(s)")
+            diagnosticLog("💡 These might be movable using CGWindow APIs")
+        }
+        diagnosticLog("")
+    }
+
+    @objc private func diagnosticTestAccessibility() {
+        diagnosticLog("♿️ Testing Accessibility API...")
+
+        guard let pid = NSWorkspace.shared.runningApplications.first(where: {
+            $0.bundleIdentifier == notificationCenterBundleID
+        })?.processIdentifier else {
+            diagnosticLog("❌ Cannot find Notification Center process")
+            return
+        }
+
+        let app = AXUIElementCreateApplication(pid)
+        var windowsRef: AnyObject?
+        let result = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &windowsRef)
+
+        if result == .success, let windows = windowsRef as? [AXUIElement] {
+            diagnosticLog("✅ Found \(windows.count) AX windows from Notification Center")
+
+            for (index, window) in windows.enumerated() {
+                if let size = getSize(of: window) {
+                    diagnosticLog("  Window \(index): \(Int(size.width))×\(Int(size.height))")
+
+                    // Check if it's the NC panel
+                    if size.width > 1000 && size.height > 1000 {
+                        diagnosticLog("    → This is the NC panel (contains nested notifications)")
+                        lastWindowElement = window  // Store window for testing
+
+                        // Check if window position is settable
+                        var windowSettable: DarwinBoolean = false
+                        AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &windowSettable)
+                        diagnosticLog("    → Window position settable: \(windowSettable.boolValue ? "✅ YES" : "❌ NO")")
+
+                        // Try to find notification children
+                        if let banner = findElementWithSubrole(root: window, targetSubroles: notificationSubroles) {
+                            if let bannerSize = getSize(of: banner) {
+                                diagnosticLog("    → Found notification element: \(Int(bannerSize.width))×\(Int(bannerSize.height))")
+                                lastNotificationElement = banner
+
+                                // Check if banner position is settable
+                                var bannerSettable: DarwinBoolean = false
+                                AXUIElementIsAttributeSettable(banner, kAXPositionAttribute as CFString, &bannerSettable)
+                                diagnosticLog("    → Banner position settable: \(bannerSettable.boolValue ? "✅ YES" : "❌ NO")")
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            diagnosticLog("❌ Failed to get AX windows: \(axErrorToString(result))")
+        }
+        diagnosticLog("")
+    }
+
+    private var lastWindowElement: AXUIElement?
+
+    @objc private func diagnosticTrySetPosition() {
+        diagnosticLog("📍 Testing different positioning approaches...")
+        diagnosticLog("")
+
+        // Test 1: Try banner element (our current approach)
+        if let banner = lastNotificationElement {
+            diagnosticLog("🧪 Test 1: Banner Element Position")
+            var settable: DarwinBoolean = false
+            AXUIElementIsAttributeSettable(banner, kAXPositionAttribute as CFString, &settable)
+            diagnosticLog("  Settable: \(settable.boolValue ? "✅ YES" : "❌ NO")")
+
+            if settable.boolValue {
+                var point = CGPoint(x: 100, y: 100)
+                let value = AXValueCreate(.cgPoint, &point)!
+                let result = AXUIElementSetAttributeValue(banner, kAXPositionAttribute as CFString, value)
+                diagnosticLog("  Set result: \(result == .success ? "✅ SUCCESS" : "❌ FAILED")")
+                if result == .success, let newPos = getPosition(of: banner) {
+                    diagnosticLog("  New position: (\(Int(newPos.x)), \(Int(newPos.y)))")
+                }
+            }
+            diagnosticLog("")
+        }
+
+        // Test 2: Try window element (PingPlace approach)
+        if let window = lastWindowElement {
+            diagnosticLog("🧪 Test 2: Window Element Position (PingPlace approach)")
+            var settable: DarwinBoolean = false
+            AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &settable)
+            diagnosticLog("  Settable: \(settable.boolValue ? "✅ YES" : "❌ NO")")
+
+            if let currentPos = getPosition(of: window) {
+                diagnosticLog("  Current window position: (\(Int(currentPos.x)), \(Int(currentPos.y)))")
+            }
+
+            // Try to set position WITHOUT checking if settable (like PingPlace does)
+            var point = CGPoint(x: 500, y: 500)
+            let value = AXValueCreate(.cgPoint, &point)!
+            let result = AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value)
+            diagnosticLog("  Set result: \(result == .success ? "✅ SUCCESS" : "❌ FAILED (\(axErrorToString(result)))")")
+
+            if let newPos = getPosition(of: window) {
+                diagnosticLog("  After set position: (\(Int(newPos.x)), \(Int(newPos.y)))")
+                if newPos.x == 500 && newPos.y == 500 {
+                    diagnosticLog("  ✅✅ POSITION CHANGED! Window element IS movable!")
+                } else if newPos != getPosition(of: window) {
+                    diagnosticLog("  ⚠️ Position changed but not to target value")
+                } else {
+                    diagnosticLog("  ❌ Position did not change")
+                }
+            }
+            diagnosticLog("")
+        }
+
+        if lastNotificationElement == nil && lastWindowElement == nil {
+            diagnosticLog("❌ No elements found. Click 'Test Accessibility API' first!")
+        }
+
+        diagnosticLog("💡 PingPlace sets position on WINDOW element, not banner!")
+        diagnosticLog("   If Test 2 works, we should use that approach!")
+        diagnosticLog("")
+    }
+
+    @objc private func diagnosticAnalyzeNCPanel() {
+        diagnosticLog("📋 Analyzing Notification Center panel...")
+
+        guard let pid = NSWorkspace.shared.runningApplications.first(where: {
+            $0.bundleIdentifier == notificationCenterBundleID
+        })?.processIdentifier else {
+            diagnosticLog("❌ Cannot find Notification Center process")
+            return
+        }
+
+        let app = AXUIElementCreateApplication(pid)
+        var windowsRef: AnyObject?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &windowsRef) == .success,
+              let windows = windowsRef as? [AXUIElement] else {
+            diagnosticLog("❌ Failed to get windows")
+            return
+        }
+
+        for window in windows {
+            if let size = getSize(of: window), size.width > 1000 {
+                diagnosticLog("✅ Found NC panel: \(Int(size.width))×\(Int(size.height))")
+                if let pos = getPosition(of: window) {
+                    diagnosticLog("   Position: (\(Int(pos.x)), \(Int(pos.y)))")
+                    if pos.x > 2560 {
+                        diagnosticLog("   ⚠️ Panel is OFF-SCREEN (x > screen width)")
+                    }
+                }
+
+                // Check if panel position is settable
+                var settable: DarwinBoolean = false
+                AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &settable)
+                diagnosticLog("   Panel position settable: \(settable.boolValue ? "✅ YES" : "❌ NO")")
+
+                diagnosticLog("   Searching for notification children...")
+                scanElementTree(window, depth: 0, maxDepth: 6)
+            }
+        }
+        diagnosticLog("")
+    }
+
+    private func scanElementTree(_ element: AXUIElement, depth: Int, maxDepth: Int) {
+        if depth > maxDepth { return }
+
+        let indent = String(repeating: "  ", count: depth + 1)
+
+        var subroleRef: AnyObject?
+        if AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef) == .success,
+           let subrole = subroleRef as? String {
+
+            if subrole.contains("Notification") {
+                if let size = getSize(of: element), let pos = getPosition(of: element) {
+                    diagnosticLog("\(indent)🎯 NOTIFICATION: \(subrole) - \(Int(size.width))×\(Int(size.height)) at (\(Int(pos.x)), \(Int(pos.y)))")
+
+                    var settable: DarwinBoolean = false
+                    AXUIElementIsAttributeSettable(element, kAXPositionAttribute as CFString, &settable)
+                    diagnosticLog("\(indent)   Settable: \(settable.boolValue ? "✅ YES" : "❌ NO")")
+                }
+            }
+        }
+
+        var childrenRef: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement] else { return }
+
+        for child in children {
+            scanElementTree(child, depth: depth + 1, maxDepth: maxDepth)
+        }
+    }
+
     private func createSettingsWindow() {
         // Golden ratio for beautiful proportions (φ ≈ 1.618)
         let phi: CGFloat = 1.618
         let windowWidth: CGFloat = 600
-        let windowHeight: CGFloat = 780
+        let windowHeight: CGFloat = 820
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
@@ -639,10 +1023,11 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.delegate = self
+        window.level = .floating
 
         // Liquid glass background
         let contentView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
-        contentView.material = .hudWindow
+        contentView.material = .sidebar
         contentView.blendingMode = .behindWindow
         contentView.state = .active
         contentView.wantsLayer = true
@@ -668,7 +1053,7 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Section header
         let positionLabel = NSTextField(labelWithString: "Notification Position")
         positionLabel.frame = NSRect(x: cardPadding, y: positionCardHeight - 36, width: positionSectionCard.frame.width - (cardPadding * 2), height: 28)
-        positionLabel.font = .systemFont(ofSize: 17, weight: .semibold)
+        positionLabel.font = .systemFont(ofSize: 15, weight: .medium)
         positionLabel.textColor = .labelColor
         positionSectionCard.addSubview(positionLabel)
 
@@ -767,7 +1152,21 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusLabel.textColor = .tertiaryLabelColor
         testPermCard.addSubview(statusLabel)
         testStatusLabel = statusLabel
-        innerY -= 42
+        innerY -= 32
+
+        // Helper text for testing
+        let helperText = NSTextField(wrappingLabelWithString: "💡 For best results, test with real notifications from Calendar, Mail, or Messages")
+        helperText.frame = NSRect(x: cardPadding, y: innerY, width: testPermCard.frame.width - (cardPadding * 2), height: 32)
+        helperText.font = .systemFont(ofSize: 11)
+        helperText.textColor = .secondaryLabelColor
+        helperText.maximumNumberOfLines = 2
+        helperText.lineBreakMode = .byWordWrapping
+        helperText.isBezeled = false
+        helperText.isEditable = false
+        helperText.isSelectable = false
+        helperText.drawsBackground = false
+        testPermCard.addSubview(helperText)
+        innerY -= 52
 
         // Subtle separator
         let separator = NSBox(frame: NSRect(x: cardPadding, y: innerY, width: testPermCard.frame.width - (cardPadding * 2), height: 1))
@@ -821,7 +1220,7 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         yPos = testPermCard.frame.origin.y - spacing2
 
         // === PREFERENCES SECTION ===
-        let prefsCardHeight: CGFloat = 140
+        let prefsCardHeight: CGFloat = 168
         let prefsCard = createLiquidGlassCard(
             x: margin,
             y: 0,
@@ -833,8 +1232,15 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let prefsLabel = NSTextField(labelWithString: "Preferences")
         prefsLabel.frame = NSRect(x: cardPadding, y: innerY, width: prefsCard.frame.width - (cardPadding * 2), height: 24)
-        prefsLabel.font = .systemFont(ofSize: 17, weight: .semibold)
+        prefsLabel.font = .systemFont(ofSize: 15, weight: .medium)
         prefsCard.addSubview(prefsLabel)
+        innerY -= 34
+
+        let enabledCheckbox = NSButton(checkboxWithTitle: "Enable notification positioning", target: self, action: #selector(settingsEnabledToggled(_:)))
+        enabledCheckbox.frame = NSRect(x: cardPadding, y: innerY, width: prefsCard.frame.width - (cardPadding * 2), height: 20)
+        enabledCheckbox.state = isEnabled ? .on : .off
+        enabledCheckbox.font = .systemFont(ofSize: 13)
+        prefsCard.addSubview(enabledCheckbox)
         innerY -= 34
 
         let launchCheckbox = NSButton(checkboxWithTitle: "Launch at login", target: self, action: #selector(settingsLaunchToggled(_:)))
@@ -914,14 +1320,14 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Create liquid glass card
         let card = NSVisualEffectView(frame: NSRect(x: x, y: y, width: width, height: height))
-        card.material = .underWindowBackground
+        card.material = .contentBackground
         card.blendingMode = .withinWindow
         card.state = .active
         card.wantsLayer = true
 
         // Golden ratio corner radius
         let cornerRadius = height / phi / 3.5 // Dynamic based on card height
-        card.layer?.cornerRadius = min(cornerRadius, 16) // Cap at 16px
+        card.layer?.cornerRadius = min(cornerRadius, 12) // Cap at 12px for sharper look
         card.layer?.borderWidth = 0.5
         card.layer?.borderColor = NSColor.white.withAlphaComponent(0.1).cgColor
 
@@ -1058,6 +1464,13 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         debugLog("Debug mode \(debugMode ? "enabled" : "disabled") - no restart needed!")
     }
 
+    @objc private func settingsEnabledToggled(_ sender: NSButton) {
+        isEnabled = sender.state == .on
+        UserDefaults.standard.set(isEnabled, forKey: "isEnabled")
+        debugLog("Notification positioning \(isEnabled ? "enabled" : "disabled")")
+    }
+
+
     @objc private func settingsHideIconToggled(_ sender: NSButton) {
         if sender.state == .on {
             let alert = NSAlert()
@@ -1162,8 +1575,8 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     self.testStatusLabel?.stringValue = "Waiting for notification..."
                     self.testStatusLabel?.textColor = .systemOrange
 
-                    // Check after 2 seconds if it was intercepted
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    // Check after 5 seconds if it was intercepted
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
                         self.updateTestStatus()
                     }
                 }
@@ -1226,9 +1639,9 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
             testStatusLabel?.textColor = .systemGreen
             debugLog("Test notification was successfully intercepted")
         } else {
-            testStatusLabel?.stringValue = "⚠ Not intercepted (check permissions)"
+            testStatusLabel?.stringValue = "ℹ️ Try a real notification (Calendar, Mail, Messages)"
             testStatusLabel?.textColor = .systemOrange
-            debugLog("Test notification was NOT intercepted")
+            debugLog("Test notification was NOT intercepted - may be in Notification Center panel")
         }
     }
 
@@ -1308,6 +1721,17 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         alert.runModal()
     }
 
+    @objc private func menuBarToggleEnabled(_ sender: NSMenuItem) {
+        isEnabled = !isEnabled
+        UserDefaults.standard.set(isEnabled, forKey: "isEnabled")
+        debugLog("Notification positioning \(isEnabled ? "enabled" : "disabled") from menu bar")
+        
+        // Update menu item title and state
+        sender.title = isEnabled ? "✓ Enabled" : "Disabled"
+        sender.state = isEnabled ? .on : .off
+    }
+
+
     @objc private func changePosition(_ sender: NSMenuItem) {
         guard let position: NotificationPosition = sender.representedObject as? NotificationPosition else { return }
         let oldPosition: NotificationPosition = currentPosition
@@ -1320,6 +1744,7 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         cachedInitialNotifSize = nil
         cachedInitialPadding = nil
+        cachedInitialWindowPosition = nil
 
         debugLog("Position changed: \(oldPosition.displayName) → \(position.displayName)")
         moveAllNotifications()
@@ -1349,6 +1774,22 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func moveNotification(_ window: AXUIElement) {
         debugLog("=== moveNotification CALLED ===")
+        
+        // Check if notification positioning is enabled
+        guard isEnabled else {
+            debugLog("Notification positioning is disabled - skipping")
+            return
+        }
+
+        // Log window identifier for diagnostics
+        if let identifier = getWindowIdentifier(window) {
+            debugLog("Window identifier: \(identifier)")
+        }
+
+        if let size = getSize(of: window) {
+            debugLog("Window size: \(size.width)×\(size.height)")
+        }
+
         debugLog("macOS Version: \(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)")
         debugLog("Current position setting: \(currentPosition.displayName)")
         debugLog("Searching for notification subroles: \(notificationSubroles)")
@@ -1358,13 +1799,13 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         guard currentPosition != .topRight else { return }
 
-        // if let identifier: String = getWindowIdentifier(window), identifier.hasPrefix("widget") {
-        //     return
-        // }
-
-        if hasNotificationCenterUI() {
-            debugLog("Skipping move - Notification Center UI detected")
-            return
+        // Early exit for standalone widget windows (weather, calendar, etc.)
+        // Only skip if THIS window itself is a widget, not if it merely contains widgets
+        if let identifier = getWindowIdentifier(window), identifier.hasPrefix(widgetIdentifierPrefix) {
+            if let size = getSize(of: window), size.width >= 150 && size.height >= 150 {
+                debugLog("⏭️ Skipping standalone widget window: \(identifier)")
+                return
+            }
         }
 
         guard let windowSize: CGSize = getSize(of: window) else {
@@ -1392,8 +1833,23 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
+        // Cache initial data on first notification
         if cachedInitialNotifSize == nil {
             cacheInitialNotificationData(notifSize: notifSize)
+        }
+
+        // PingPlace approach: Reset to cached position first if position has drifted
+        if let windowPos = getPosition(of: window), let cachedPos = cachedInitialWindowPosition {
+            if windowPos != cachedPos {
+                debugLog("Resetting window to cached position before moving")
+                setPosition(window, x: cachedPos.x, y: cachedPos.y)
+            }
+        } else if cachedInitialWindowPosition == nil {
+            // Cache the initial window position
+            if let windowPos = getPosition(of: window) {
+                cachedInitialWindowPosition = windowPos
+                debugLog("Cached initial window position: (\(windowPos.x), \(windowPos.y))")
+            }
         }
 
         let newPosition: (x: CGFloat, y: CGFloat) = calculateNewPosition(
@@ -1401,24 +1857,44 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
             padding: cachedInitialPadding!
         )
 
-        // Determine which element to position based on macOS version
-        let elementToPosition = getPositionableElement(window: window, banner: bannerContainer)
-        debugLog("Positioning element type: \(elementToPosition === window ? "window" : "banner")")
+        // macOS 26.1: If window is the NC panel (full screen), move the banner element
+        // macOS 15: If window is the notification itself, move the window
+        if windowSize.width > 1000 && windowSize.height > 1000 {
+            // This is the NC panel - move the banner element inside it
+            debugLog("macOS 26+ NC panel detected - moving banner element (not window)")
+            if let posBefore = getPosition(of: bannerContainer) {
+                debugLog("Banner position BEFORE move: (\(posBefore.x), \(posBefore.y))")
+            }
+            setPosition(bannerContainer, x: newPosition.x, y: newPosition.y)
 
-        setPosition(elementToPosition, x: newPosition.x, y: newPosition.y)
-
-        // Verify position was actually set
-        if !verifyPositionSet(elementToPosition, expected: CGPoint(x: newPosition.x, y: newPosition.y)) {
-            debugLog("⚠️ Position verification failed - notification may not have moved")
+            // Verify the position actually changed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                if let posAfter = self?.getPosition(of: bannerContainer) {
+                    self?.debugLog("Banner position AFTER move: (\(posAfter.x), \(posAfter.y))")
+                    if abs(posAfter.x - newPosition.x) > 10 || abs(posAfter.y - newPosition.y) > 10 {
+                        self?.debugLog("⚠️ WARNING: Position was NOT updated by macOS! Move failed!")
+                    } else {
+                        self?.debugLog("✅ Position successfully changed and persisted")
+                    }
+                }
+            }
+        } else {
+            // This is a standalone notification window - move the window itself (PingPlace approach)
+            debugLog("Standalone notification window - moving window element (PingPlace approach)")
+            setPosition(window, x: newPosition.x, y: newPosition.y)
         }
 
         pollingEndTime = Date().addingTimeInterval(6.5)
         debugLog("Moved notification to \(currentPosition.displayName) at (\(newPosition.x), \(newPosition.y))")
 
-        // Track for test notification
-        if let lastTest = lastNotificationTime, Date().timeIntervalSince(lastTest) < 5 {
-            notificationWasIntercepted = true
-            debugLog("✅ Test notification was intercepted and moved!")
+        // Track for test notification (only count banner-sized windows, not NC panel)
+        if let lastTest = lastNotificationTime, Date().timeIntervalSince(lastTest) < 6 {
+            if let size = getSize(of: window), size.width < 600 && size.height < 200 {
+                notificationWasIntercepted = true
+                debugLog("✅ Test notification was intercepted and moved!")
+            } else {
+                debugLog("ℹ️ Notification Center panel window processed (not a banner)")
+            }
         }
     }
 
@@ -1530,10 +2006,25 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func setupObserver() {
+        // Setup observer for NotificationCenter (for macOS-native notifications)
+        setupNotificationCenterObserver()
+
+        // Setup global window monitoring (for external app notifications like Chrome, Slack, etc.)
+        setupGlobalWindowMonitoring()
+
+        // Setup widget monitoring
+        widgetMonitorTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            self.checkForWidgetChanges()
+        }
+
+        debugLog("🌍 Global notification monitoring active - watching all apps")
+    }
+
+    private func setupNotificationCenterObserver() {
         guard let pid: pid_t = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == notificationCenterBundleID
         })?.processIdentifier else {
-            debugLog("Failed to setup observer - Notification Center not found")
+            debugLog("⚠️ Notification Center not found")
             return
         }
 
@@ -1541,7 +2032,7 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         var observer: AXObserver?
         let createResult = AXObserverCreate(pid, observerCallback, &observer)
         guard createResult == .success else {
-            debugLog("❌ Failed to create AXObserver: \(axErrorToString(createResult))")
+            debugLog("❌ Failed to create AXObserver for NotificationCenter: \(axErrorToString(createResult))")
             return
         }
         axObserver = observer
@@ -1554,10 +2045,179 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer!), .defaultMode)
 
-        debugLog("Observer setup complete for Notification Center (PID: \(pid))")
+        debugLog("✅ NotificationCenter observer active (PID: \(pid))")
+    }
 
-        widgetMonitorTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-            self.checkForWidgetChanges()
+    private func setupGlobalWindowMonitoring() {
+        // Build initial set of known windows
+        buildKnownWindowSet()
+
+        // Monitor for new windows every 200ms (fast enough to catch notifications)
+        globalWindowMonitorTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            self?.detectNewNotificationWindows()
+        }
+
+        debugLog("✅ Global window monitor started (checking every 200ms)")
+    }
+
+    private func buildKnownWindowSet() {
+        let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return
+        }
+
+        for window in windowList {
+            if let windowNumber = window[kCGWindowNumber as String] as? Int {
+                knownWindowNumbers.insert(windowNumber)
+            }
+        }
+        debugLog("📊 Initial window set: \(knownWindowNumbers.count) windows tracked")
+    }
+
+    private func detectNewNotificationWindows() {
+        let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return
+        }
+
+        for window in windowList {
+            guard let windowNumber = window[kCGWindowNumber as String] as? Int,
+                  !knownWindowNumbers.contains(windowNumber),
+                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+                  let width = bounds["Width"],
+                  let height = bounds["Height"],
+                  let x = bounds["X"],
+                  let y = bounds["Y"],
+                  let ownerPID = window[kCGWindowOwnerPID as String] as? Int32 else {
+                continue
+            }
+
+            // Check if this is a notification-sized window
+            if width >= 200 && width <= 800 && height >= 60 && height <= 200 {
+                let ownerName = window[kCGWindowOwnerName as String] as? String ?? "Unknown"
+                let layer = window[kCGWindowLayer as String] as? Int ?? 0
+
+                debugLog("🆕 NEW notification window detected!")
+                debugLog("   App: \(ownerName) [PID: \(ownerPID)]")
+                debugLog("   Size: \(Int(width))×\(Int(height)) at (\(Int(x)), \(Int(y)))")
+                debugLog("   Window#: \(windowNumber), Layer: \(layer)")
+
+                // Add to known windows
+                knownWindowNumbers.insert(windowNumber)
+
+                // Try to move it using CGWindow API
+                moveExternalNotificationWindow(windowNumber: windowNumber, currentX: x, currentY: y, width: width, height: height)
+            } else {
+                // Not a notification, but track it anyway
+                knownWindowNumbers.insert(windowNumber)
+            }
+        }
+    }
+
+    private func moveExternalNotificationWindow(windowNumber: Int, currentX: CGFloat, currentY: CGFloat, width: CGFloat, height: CGFloat) {
+        guard currentPosition != .topRight else {
+            debugLog("   Position is Top Right (default) - not moving")
+            return
+        }
+
+        // Cache initial size if needed
+        if cachedInitialNotifSize == nil {
+            cacheInitialNotificationData(notifSize: CGSize(width: width, height: height))
+        }
+
+        // Calculate new position
+        let newPosition = calculateNewPosition(
+            notifSize: cachedInitialNotifSize!,
+            padding: cachedInitialPadding!
+        )
+
+        debugLog("   Attempting to move external notification to \(currentPosition.displayName)")
+        debugLog("   Target position: (\(Int(newPosition.x)), \(Int(newPosition.y)))")
+
+        // Try to get AX element for this window and move it
+        if let axElement = getAXElementForWindow(windowNumber: windowNumber) {
+            setPosition(axElement, x: newPosition.x, y: newPosition.y)
+
+            // Verify the move
+            if let newPos = getPosition(of: axElement) {
+                if abs(newPos.x - newPosition.x) < 10 && abs(newPos.y - newPosition.y) < 10 {
+                    debugLog("   ✅ Successfully moved external notification!")
+                } else {
+                    debugLog("   ⚠️ Position mismatch after move: (\(Int(newPos.x)), \(Int(newPos.y)))")
+                }
+            }
+        } else {
+            debugLog("   ❌ Could not get AX element for window #\(windowNumber)")
+        }
+    }
+
+    private func getAXElementForWindow(windowNumber: Int) -> AXUIElement? {
+        // Get all windows across all apps and find the one matching this window number
+        for app in NSWorkspace.shared.runningApplications {
+            guard let pid = app.processIdentifier as pid_t? else { continue }
+
+            let appElement = AXUIElementCreateApplication(pid)
+            var windowsRef: AnyObject?
+            guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef) == .success,
+                  let windows = windowsRef as? [AXUIElement] else {
+                continue
+            }
+
+            for window in windows {
+                // Try to match by position and size
+                if let pos = getPosition(of: window), let size = getSize(of: window) {
+                    // Get this window's info from CGWindow
+                    let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
+                    guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+                        continue
+                    }
+
+                    for cgWindow in windowList {
+                        if let wNum = cgWindow[kCGWindowNumber as String] as? Int,
+                           wNum == windowNumber,
+                           let bounds = cgWindow[kCGWindowBounds as String] as? [String: CGFloat],
+                           let x = bounds["X"],
+                           let y = bounds["Y"],
+                           let w = bounds["Width"],
+                           let h = bounds["Height"] {
+
+                            // Match by position and size
+                            if abs(pos.x - x) < 5 && abs(pos.y - y) < 5 &&
+                               abs(size.width - w) < 5 && abs(size.height - h) < 5 {
+                                return window
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private func scanAllWindowsForNotifications() {
+        let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return
+        }
+
+        for window in windowList {
+            guard let windowLayer = window[kCGWindowLayer as String] as? Int,
+                  windowLayer == 0 || windowLayer == 25, // Normal or notification layer
+                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+                  let width = bounds["Width"],
+                  let height = bounds["Height"],
+                  let x = bounds["X"],
+                  let y = bounds["Y"],
+                  let ownerPID = window[kCGWindowOwnerPID as String] as? Int32 else {
+                continue
+            }
+
+            // Look for notification-sized windows
+            if width >= 200 && width <= 800 && height >= 60 && height <= 200 {
+                let ownerName = window[kCGWindowOwnerName as String] as? String ?? "Unknown"
+                let windowName = window[kCGWindowName as String] as? String ?? ""
+                debugLog("🔍 Found potential notification window: \(ownerName) [\(ownerPID)] - \(windowName) - Size: \(width)×\(height) at (\(x), \(y))")
+            }
         }
     }
 
@@ -1603,7 +2263,7 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func findElementWithWidgetIdentifier(root: AXUIElement) -> AXUIElement? {
         if let identifier: String = getWindowIdentifier(root), identifier.hasPrefix("widget-local") {
             // Verify this is an actual widget panel (significant size) not just an empty overlay container
-            if let size = getSize(of: root), size.width > 200 && size.height > 200 {
+            if let size = getSize(of: root), size.width >= 150 && size.height >= 150 {
                 debugLog("✓ Found actual Notification Center widget panel: \(identifier), size: \(size)")
                 hasLoggedEmptyWidget = false // Reset for next session
                 return root
@@ -1650,7 +2310,8 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     ) -> (x: CGFloat, y: CGFloat) {
         let screenWidth: CGFloat = NSScreen.main!.frame.width
         let screenHeight: CGFloat = NSScreen.main!.frame.height
-        let dockSize: CGFloat = NSScreen.main!.frame.height - NSScreen.main!.visibleFrame.height
+        // Fix: Use visible frame origin to get actual dock height (not total - visible height)
+        let dockSize: CGFloat = NSScreen.main!.visibleFrame.origin.y
 
         debugLog("Calculating absolute position - screen: \(screenWidth)×\(screenHeight), notifSize: \(notifSize), padding: \(padding), dockSize: \(dockSize)")
 
@@ -1726,18 +2387,58 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func setPosition(_ element: AXUIElement, x: CGFloat, y: CGFloat) {
+        // PingPlace approach: Don't check settability, just try to set it
+        // macOS may report not settable but the API call may still work
         var point = CGPoint(x: x, y: y)
         let value: AXValue = AXValueCreate(.cgPoint, &point)!
         let result = AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, value)
-        guard result == .success else {
-            debugLog("❌ Failed to set position attribute: \(axErrorToString(result))")
-            return
+
+        if result == .success {
+            debugLog("✓ Position set to (\(x), \(y))")
+        } else {
+            debugLog("⚠️ Set position returned: \(axErrorToString(result))")
         }
     }
 
     private func getPositionableElement(window: AXUIElement, banner: AXUIElement) -> AXUIElement {
-        // On all macOS versions, we need to position the banner element directly
-        // The window element position doesn't affect the actual notification content position
+        // For macOS 26+, try the window element first as notifications may have changed
+        if osVersion.majorVersion >= 26 {
+            debugLog("macOS 26+ detected - checking which element is positionable")
+
+            // Check window size - never move oversized windows (NC panel, etc.)
+            if let windowSize = getSize(of: window) {
+                debugLog("Window size check: \(windowSize.width)×\(windowSize.height)")
+                if windowSize.width > 600 || windowSize.height > 300 {
+                    debugLog("⚠️ Window too large (\(windowSize.width)×\(windowSize.height)) - likely NC panel, using banner element")
+                    return banner
+                }
+            }
+
+            // Check if window position is settable
+            var windowSettable: DarwinBoolean = false
+            let windowResult = AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &windowSettable)
+
+            // Check if banner position is settable
+            var bannerSettable: DarwinBoolean = false
+            let bannerResult = AXUIElementIsAttributeSettable(banner, kAXPositionAttribute as CFString, &bannerSettable)
+
+            debugLog("Window position settable: \(windowSettable.boolValue) (\(axErrorToString(windowResult)))")
+            debugLog("Banner position settable: \(bannerSettable.boolValue) (\(axErrorToString(bannerResult)))")
+
+            // Prefer window if settable, otherwise try banner
+            if windowResult == .success && windowSettable.boolValue {
+                debugLog("Using window element for positioning")
+                return window
+            } else if bannerResult == .success && bannerSettable.boolValue {
+                debugLog("Using banner element for positioning")
+                return banner
+            } else {
+                debugLog("⚠️ Neither window nor banner has settable position - attempting banner anyway")
+                return banner
+            }
+        }
+
+        // On older macOS versions, use banner element
         debugLog("Positioning banner element (notification content)")
         return banner
     }
@@ -2157,15 +2858,5 @@ private func observerCallback(observer _: AXObserver, element: AXUIElement, noti
 
     if notificationString == kAXWindowCreatedNotification as String {
         mover.moveNotification(element)
-    }
-}
-
-@main
-struct NotimanagerApp {
-    static func main() {
-        let app: NSApplication = .shared
-        let delegate: NotificationMover = .init()
-        app.delegate = delegate
-        app.run()
     }
 }
