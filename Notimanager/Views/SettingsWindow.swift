@@ -17,13 +17,13 @@ class SettingsWindow: NSWindow {
     private let documentView = NSView()
     private var positionGridView: NSView?
 
-    // Reference to NotificationMover for callbacks
-    private weak var mover: NotificationMover?
+    // Reference to Coordinator for callbacks
+    private weak var coordinator: CoordinatorAction?
 
     // MARK: - Initialization
 
-    init(mover: NotificationMover) {
-        self.mover = mover
+    init(coordinator: CoordinatorAction) {
+        self.coordinator = coordinator
 
         super.init(
             contentRect: NSRect(
@@ -143,7 +143,7 @@ class SettingsWindow: NSWindow {
         card.addSubview(headerLabel)
 
         // Position grid
-        let positionGrid = createPositionGrid(selection: mover?.internalCurrentPosition ?? .topMiddle) { [weak self] newPosition in
+        let positionGrid = createPositionGrid(selection: coordinator?.currentPosition ?? .topMiddle) { [weak self] newPosition in
             self?.positionChanged(to: newPosition)
         }
 
@@ -189,8 +189,8 @@ class SettingsWindow: NSWindow {
             "Send Test",
             frame: NSRect(x: Spacing.pt16, y: innerY, width: 130, height: Layout.regularButtonHeight)
         )
-        testButton.action = #selector(NotificationMover.internalSendTestNotification)
-        testButton.target = mover
+        testButton.action = #selector(handleSendTestNotification)
+        testButton.target = self
         card.addSubview(testButton)
 
         // Status label
@@ -245,8 +245,8 @@ class SettingsWindow: NSWindow {
                 frame: NSRect(x: card.frame.width - Spacing.pt16 - 220, y: innerY, width: 105, height: Layout.smallButtonHeight)
             )
             clearBtn.controlSize = .small
-            clearBtn.action = #selector(NotificationMover.internalSettingsResetPermission)
-            clearBtn.target = mover
+            clearBtn.action = #selector(handleResetPermission)
+            clearBtn.target = self
             card.addSubview(clearBtn)
 
             let restartBtn = createButton(
@@ -254,8 +254,8 @@ class SettingsWindow: NSWindow {
                 frame: NSRect(x: card.frame.width - Spacing.pt16 - 105, y: innerY, width: 105, height: Layout.smallButtonHeight)
             )
             restartBtn.controlSize = .small
-            restartBtn.action = #selector(NotificationMover.internalSettingsRestartApp)
-            restartBtn.target = mover
+            restartBtn.action = #selector(handleRestartApp)
+            restartBtn.target = self
             card.addSubview(restartBtn)
         } else {
             let requestBtn = createButton(
@@ -263,8 +263,8 @@ class SettingsWindow: NSWindow {
                 frame: NSRect(x: card.frame.width - Spacing.pt16 - 170, y: innerY, width: 170, height: Layout.smallButtonHeight)
             )
             requestBtn.controlSize = .small
-            requestBtn.action = #selector(NotificationMover.internalShowPermissionStatus)
-            requestBtn.target = mover
+            requestBtn.action = #selector(handleRequestPermission)
+            requestBtn.target = self
             card.addSubview(requestBtn)
         }
 
@@ -301,9 +301,9 @@ class SettingsWindow: NSWindow {
             "Enable notification positioning",
             frame: NSRect(x: Spacing.pt16, y: innerY, width: card.frame.width - (Spacing.pt16 * 2), height: Spacing.pt20)
         )
-        enabledCheckbox.state = mover?.internalIsEnabled ?? true ? .on : .off
-        enabledCheckbox.action = #selector(NotificationMover.internalSettingsEnabledToggled(_:))
-        enabledCheckbox.target = mover
+        enabledCheckbox.state = coordinator?.isEnabled ?? true ? .on : .off
+        enabledCheckbox.action = #selector(handleEnabledToggle(_:))
+        enabledCheckbox.target = self
         card.addSubview(enabledCheckbox)
         innerY -= Spacing.pt32
 
@@ -311,9 +311,9 @@ class SettingsWindow: NSWindow {
             "Launch at login",
             frame: NSRect(x: Spacing.pt16, y: innerY, width: card.frame.width - (Spacing.pt16 * 2), height: Spacing.pt20)
         )
-        launchCheckbox.state = FileManager.default.fileExists(atPath: mover?.internalLaunchAgentPlistPath ?? "") ? .on : .off
-        launchCheckbox.action = #selector(NotificationMover.internalSettingsLaunchToggled(_:))
-        launchCheckbox.target = mover
+        launchCheckbox.state = FileManager.default.fileExists(atPath: coordinator?.launchAgentPlistPath ?? "") ? .on : .off
+        launchCheckbox.action = #selector(handleLaunchToggle(_:))
+        launchCheckbox.target = self
         card.addSubview(launchCheckbox)
         innerY -= Spacing.pt32
 
@@ -321,9 +321,9 @@ class SettingsWindow: NSWindow {
             "Debug mode",
             frame: NSRect(x: Spacing.pt16, y: innerY, width: card.frame.width - (Spacing.pt16 * 2), height: Spacing.pt20)
         )
-        debugCheckbox.state = mover?.internalDebugMode ?? false ? .on : .off
-        debugCheckbox.action = #selector(NotificationMover.internalSettingsDebugToggled(_:))
-        debugCheckbox.target = mover
+        debugCheckbox.state = coordinator?.debugMode ?? false ? .on : .off
+        debugCheckbox.action = #selector(handleDebugToggle(_:))
+        debugCheckbox.target = self
         card.addSubview(debugCheckbox)
         innerY -= Spacing.pt32
 
@@ -331,9 +331,9 @@ class SettingsWindow: NSWindow {
             "Hide menu bar icon",
             frame: NSRect(x: Spacing.pt16, y: innerY, width: card.frame.width - (Spacing.pt16 * 2), height: Spacing.pt20)
         )
-        hideIconCheckbox.state = mover?.internalIsMenuBarIconHidden ?? false ? .on : .off
-        hideIconCheckbox.action = #selector(NotificationMover.internalSettingsHideIconToggled(_:))
-        hideIconCheckbox.target = mover
+        hideIconCheckbox.state = coordinator?.isMenuBarIconHidden ?? false ? .on : .off
+        hideIconCheckbox.action = #selector(handleHideIconToggle(_:))
+        hideIconCheckbox.target = self
         card.addSubview(hideIconCheckbox)
 
         documentView.addSubview(card)
@@ -381,8 +381,8 @@ class SettingsWindow: NSWindow {
             frame: NSRect(x: Spacing.pt16, y: innerY, width: 145, height: Layout.smallButtonHeight)
         )
         kofiBtn.controlSize = .small
-        kofiBtn.action = #selector(NotificationMover.internalOpenKofi)
-        kofiBtn.target = mover
+        kofiBtn.action = #selector(handleOpenKofi)
+        kofiBtn.target = self
         card.addSubview(kofiBtn)
 
         let coffeeBtn = createButton(
@@ -390,8 +390,8 @@ class SettingsWindow: NSWindow {
             frame: NSRect(x: Spacing.pt16 + 155, y: innerY, width: 155, height: Layout.smallButtonHeight)
         )
         coffeeBtn.controlSize = .small
-        coffeeBtn.action = #selector(NotificationMover.internalOpenBuyMeACoffee)
-        coffeeBtn.target = mover
+        coffeeBtn.action = #selector(handleOpenBuyMeACoffee)
+        coffeeBtn.target = self
         card.addSubview(coffeeBtn)
 
         documentView.addSubview(card)
@@ -596,11 +596,57 @@ class SettingsWindow: NSWindow {
     // MARK: - Actions
 
     private func positionChanged(to newPosition: NotificationPosition) {
-        mover?.updatePosition(to: newPosition)
+        coordinator?.updatePosition(to: newPosition)
         AccessibilityManager.shared.announceSettingChange(
             setting: "Notification position",
             value: newPosition.displayName
         )
+    }
+
+    // MARK: - Action Handlers
+
+    @objc private func handleEnabledToggle(_ checkbox: NSButton) {
+        coordinator?.toggleEnabled()
+        checkbox.state = coordinator?.isEnabled ?? true ? .on : .off
+    }
+
+    @objc private func handleLaunchToggle(_ checkbox: NSButton) {
+        coordinator?.toggleLaunchAtLogin()
+        // Update checkbox based on actual state
+        let isLaunched = FileManager.default.fileExists(atPath: coordinator?.launchAgentPlistPath ?? "")
+        checkbox.state = isLaunched ? .on : .off
+    }
+
+    @objc private func handleDebugToggle(_ checkbox: NSButton) {
+        // Handled by ConfigurationManager via notification
+    }
+
+    @objc private func handleHideIconToggle(_ checkbox: NSButton) {
+        // Handled by ConfigurationManager via notification
+    }
+
+    @objc private func handleSendTestNotification() {
+        coordinator?.sendTestNotification()
+    }
+
+    @objc private func handleResetPermission() {
+        coordinator?.resetAccessibilityPermission()
+    }
+
+    @objc private func handleRestartApp() {
+        coordinator?.restartApp()
+    }
+
+    @objc private func handleRequestPermission() {
+        coordinator?.requestAccessibilityPermission()
+    }
+
+    @objc private func handleOpenKofi() {
+        coordinator?.openKofi()
+    }
+
+    @objc private func handleOpenBuyMeACoffee() {
+        coordinator?.openBuyMeACoffee()
     }
 
     // MARK: - Appearance Updates
@@ -616,6 +662,13 @@ class SettingsWindow: NSWindow {
     }
 
     // MARK: - Public Methods
+
+    /// Shows the settings window
+    func show() {
+        center()
+        makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     /// Updates the position grid selection
     func updatePositionSelection(_ position: NotificationPosition) {

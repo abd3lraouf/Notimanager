@@ -64,7 +64,7 @@ class PermissionViewController: NSViewController {
     }
 
     private func setupUI() {
-        guard let contentView = view else { return }
+        let contentView = view
 
         // Golden ratio based spacing
         let phi: CGFloat = 1.618
@@ -308,11 +308,10 @@ class PermissionViewController: NSViewController {
             requestButton?.isHidden = true
 
             // Hide clear button
-            if let contentView = view {
-                for subview in contentView.subviews {
-                    if let button = subview as? NSButton, button.title == "Clear Permission" {
-                        button.isHidden = true
-                    }
+            let contentView = view
+            for subview in contentView.subviews {
+                if let button = subview as? NSButton, button.title == "Clear Permission" {
+                    button.isHidden = true
                 }
             }
 
@@ -333,11 +332,10 @@ class PermissionViewController: NSViewController {
             requestButton?.title = "Open System Settings"
 
             // Show clear button
-            if let contentView = view {
-                for subview in contentView.subviews {
-                    if let button = subview as? NSButton, button.title == "Clear Permission" {
-                        button.isHidden = false
-                    }
+            let contentView = view
+            for subview in contentView.subviews {
+                if let button = subview as? NSButton, button.title == "Clear Permission" {
+                    button.isHidden = false
                 }
             }
 

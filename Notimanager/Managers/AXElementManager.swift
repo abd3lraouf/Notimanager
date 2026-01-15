@@ -11,14 +11,6 @@ import ApplicationServices
 import AppKit
 import Foundation
 
-/// Size constraints for element matching
-struct SizeConstraints {
-    let minWidth: CGFloat
-    let minHeight: CGFloat
-    let maxWidth: CGFloat
-    let maxHeight: CGFloat
-}
-
 /// Centralized Accessibility API element operations
 @available(macOS 10.15, *)
 class AXElementManager {
@@ -125,11 +117,11 @@ class AXElementManager {
             }
 
             // Check if window position is settable
-            var windowSettable = DarwinBoolean = false
+            var windowSettable = DarwinBoolean(false)
             let windowResult = AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &windowSettable)
 
             // Check if banner position is settable
-            var bannerSettable = DarwinBoolean = false
+            var bannerSettable = DarwinBoolean(false)
             let bannerResult = AXUIElementIsAttributeSettable(banner, kAXPositionAttribute as CFString, &bannerSettable)
 
             if windowResult == .success && windowSettable.boolValue {
@@ -328,6 +320,7 @@ class AXElementManager {
             root: root,
             sizeConstraints: SizeConstraints(
                 minWidth: 280,
+                minHeight: 50,
                 maxWidth: 800,
                 maxHeight: 300
             )
@@ -340,8 +333,8 @@ class AXElementManager {
             root: root,
             sizeConstraints: SizeConstraints(
                 minWidth: 250,
-                maxWidth: 600,
                 minHeight: 40,
+                maxWidth: 600,
                 maxHeight: 200
             )
         ) {
@@ -367,7 +360,7 @@ class AXElementManager {
         guard currentDepth < maxDepth else { return nil }
 
         // Check if current element has the target identifier
-        if let elemIdentifier = getWindowIdentifier(root: root), elemIdentifier == identifier {
+        if let elemIdentifier = getWindowIdentifier(root), elemIdentifier == identifier {
             return root
         }
 
@@ -684,7 +677,7 @@ class AXElementManager {
         var childrenRef: AnyObject?
         if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
            let children = childrenRef as? [AXUIElement] {
-            for (index, child) in children {
+            for (index, child) in children.enumerated() {
                 dumpElementHierarchy(child, label: "Child[\(index)]", depth: depth + 1, maxDepth: maxDepth)
             }
         }

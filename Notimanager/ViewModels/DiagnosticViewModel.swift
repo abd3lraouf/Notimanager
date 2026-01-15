@@ -64,7 +64,7 @@ class DiagnosticViewModel {
     }
 
     private func debugLog(_ message: String) {
-        LoggingService.shared.log(message, category: "DiagnosticViewModel")
+        LoggingService.shared.debug(message)
     }
 
     func clearOutput() {

@@ -399,9 +399,6 @@ class TestNotificationService {
 
 extension TestNotificationService {
 
-    /// Status label for displaying test results
-    private weak var statusLabel: NSTextField?
-
     /// Sets the status label for UI updates
     /// - Parameter label: The label to update
     func setStatusLabel(_ label: NSTextField?) {

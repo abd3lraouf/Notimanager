@@ -306,13 +306,6 @@ struct SizeConstraints {
     let maxHeight: CGFloat
 }
 
-/// Accessibility permission status
-enum PermissionStatus {
-    case granted
-    case denied
-    case unknown
-}
-
 /// macOS version categories
 enum MacOSVersion {
     case sequoia  // macOS 15+

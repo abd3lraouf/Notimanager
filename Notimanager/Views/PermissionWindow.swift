@@ -15,7 +15,7 @@ class PermissionWindow: NSWindow {
 
     private var scrollView: NSScrollView!
     private var documentView: NSView!
-    private weak var mover: NotificationMover?
+    private weak var coordinator: CoordinatorAction?
 
     private var statusIconView: NSImageView?
     private var statusTitleLabel: NSTextField?
@@ -28,8 +28,8 @@ class PermissionWindow: NSWindow {
 
     // MARK: - Initialization
 
-    init(mover: NotificationMover) {
-        self.mover = mover
+    init(coordinator: CoordinatorAction) {
+        self.coordinator = coordinator
 
         super.init(
             contentRect: NSRect(
@@ -462,11 +462,11 @@ class PermissionWindow: NSWindow {
     // MARK: - Actions
 
     @objc private func requestPermission() {
-        mover?.requestAccessibilityPermission()
+        coordinator?.requestAccessibilityPermission()
     }
 
     @objc private func clearPermission() {
-        mover?.resetAccessibilityPermission()
+        coordinator?.resetAccessibilityPermission()
     }
 
     @objc private func restartApp() {

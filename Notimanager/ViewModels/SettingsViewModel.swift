@@ -394,7 +394,7 @@ class SettingsViewModel {
     // MARK: - Helpers
 
     private func debugLog(_ message: String) {
-        LoggingService.shared.log(message, category: "SettingsViewModel")
+        LoggingService.shared.debug(message)
     }
 
     private func showError(_ message: String) {

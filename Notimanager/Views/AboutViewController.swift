@@ -41,7 +41,7 @@ class AboutViewController: NSViewController {
     // MARK: - Setup
 
     private func setupUI() {
-        guard let contentView = view else { return }
+        let contentView = view
 
         let version: String = viewModel.version
         let copyright: String = viewModel.copyright
