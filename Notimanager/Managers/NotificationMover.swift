@@ -1010,11 +1010,15 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Golden ratio for beautiful proportions (φ ≈ 1.618)
         let phi: CGFloat = 1.618
         let windowWidth: CGFloat = 600
-        let windowHeight: CGFloat = 820
+        // Calculate proper height to fit all content:
+        // Top margin (84) + Position card (330) + Spacing (31) + Test card (180) +
+        // Spacing (31) + Preferences card (168) + Spacing (31) + About card (110) + Bottom margin (50) = 1015
+        // Round to 1020 for clean golden ratio alignment
+        let windowHeight: CGFloat = 1020
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -1024,6 +1028,7 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.isMovableByWindowBackground = true
         window.delegate = self
         window.level = .floating
+        window.minSize = NSSize(width: windowWidth, height: windowHeight)
 
         // Liquid glass background
         let contentView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))

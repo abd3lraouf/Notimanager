@@ -1,0 +1,34 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(/Users/abdelraouf/Developer/Notimanager/.auto-claude/worktrees/tasks/002-fix-settings-screen-dimensions-and-make-sure-it-sh/**)",
+      "Write(/Users/abdelraouf/Developer/Notimanager/.auto-claude/worktrees/tasks/002-fix-settings-screen-dimensions-and-make-sure-it-sh/**)",
+      "Edit(/Users/abdelraouf/Developer/Notimanager/.auto-claude/worktrees/tasks/002-fix-settings-screen-dimensions-and-make-sure-it-sh/**)",
+      "Glob(/Users/abdelraouf/Developer/Notimanager/.auto-claude/worktrees/tasks/002-fix-settings-screen-dimensions-and-make-sure-it-sh/**)",
+      "Grep(/Users/abdelraouf/Developer/Notimanager/.auto-claude/worktrees/tasks/002-fix-settings-screen-dimensions-and-make-sure-it-sh/**)",
+      "Read(/Users/abdelraouf/Developer/Notimanager/.auto-claude/worktrees/tasks/002-fix-settings-screen-dimensions-and-make-sure-it-sh/.auto-claude/specs/002-fix-settings-screen-dimensions-and-make-sure-it-sh/**)",
+      "Write(/Users/abdelraouf/Developer/Notimanager/.auto-claude/worktrees/tasks/002-fix-settings-screen-dimensions-and-make-sure-it-sh/.auto-claude/specs/002-fix-settings-screen-dimensions-and-make-sure-it-sh/**)",
+      "Edit(/Users/abdelraouf/Developer/Notimanager/.auto-claude/worktrees/tasks/002-fix-settings-screen-dimensions-and-make-sure-it-sh/.auto-claude/specs/002-fix-settings-screen-dimensions-and-make-sure-it-sh/**)",
+      "Read(/Users/abdelraouf/Developer/Notimanager/.auto-claude/**)",
+      "Write(/Users/abdelraouf/Developer/Notimanager/.auto-claude/**)",
+      "Edit(/Users/abdelraouf/Developer/Notimanager/.auto-claude/**)",
+      "Glob(/Users/abdelraouf/Developer/Notimanager/.auto-claude/**)",
+      "Grep(/Users/abdelraouf/Developer/Notimanager/.auto-claude/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__get-library-docs(*)"
+    ]
+  }
+}
