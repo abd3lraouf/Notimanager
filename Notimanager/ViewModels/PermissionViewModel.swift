@@ -116,7 +116,7 @@ class PermissionViewModel {
     // MARK: - Helpers
 
     private func debugLog(_ message: String) {
-        LoggingService.shared.log(message, category: "PermissionViewModel")
+        LoggingService.shared.debug(message)
     }
 
     private func showError(_ message: String) {

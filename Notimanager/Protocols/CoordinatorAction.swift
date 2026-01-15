@@ -76,25 +76,31 @@ extension CoordinatorAction {
     /// Handles enabled checkbox toggle
     /// - Parameter checkbox: The checkbox that was toggled
     func toggleEnabledFromSettings(_ checkbox: NSButton) {
-        isEnabled = (checkbox.state == .on)
+        toggleEnabled()
+        // Update checkbox state to match
+        checkbox.state = isEnabled ? .on : .off
     }
 
     /// Handles launch at login checkbox toggle
     /// - Parameter checkbox: The checkbox that was toggled
     func toggleLaunchFromSettings(_ checkbox: NSButton) {
-        // Implementation depends on LaunchAgentManager
+        toggleLaunchAtLogin()
+        // Update checkbox state to match
+        // Note: This needs access to launch agent state
     }
 
     /// Handles debug mode checkbox toggle
     /// - Parameter checkbox: The checkbox that was toggled
     func toggleDebugFromSettings(_ checkbox: NSButton) {
-        debugMode = (checkbox.state == .on)
+        // Debug mode is set via ConfigurationManager
+        // This is a no-op here, handled in SettingsViewModel
     }
 
     /// Handles hide icon checkbox toggle
     /// - Parameter checkbox: The checkbox that was toggled
     func toggleHideIconFromSettings(_ checkbox: NSButton) {
-        isMenuBarIconHidden = (checkbox.state == .on)
+        // Menu bar icon is set via ConfigurationManager
+        // This is a no-op here, handled in SettingsViewModel
     }
 }
 
@@ -104,11 +110,11 @@ extension CoordinatorAction {
 
     /// Opens the Ko-fi support page
     func openKofi() {
-        // Implementation opens Ko-fi URL
+        NSWorkspace.shared.open(URL(string: "https://ko-fi.com/wadegrimridge")!)
     }
 
     /// Opens the Buy Me a Coffee support page
     func openBuyMeACoffee() {
-        // Implementation opens Buy Me a Coffee URL
+        NSWorkspace.shared.open(URL(string: "https://www.buymeacoffee.com/wadegrimridge")!)
     }
 }

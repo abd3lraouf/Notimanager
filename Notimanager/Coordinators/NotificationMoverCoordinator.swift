@@ -9,6 +9,7 @@
 
 import AppKit
 import Foundation
+import UserNotifications
 
 /// Main coordinator for the Notimanager application.
 /// Handles application lifecycle, service coordination, and UI delegation.
@@ -19,6 +20,7 @@ final class NotificationMoverCoordinator: NSObject {
 
     private let configurationManager: ConfigurationManager
     private let accessibilityManager: AccessibilityManager
+    private let permissionService: AccessibilityPermissionService
     private let positioningService: NotificationPositioningService
     private let windowMonitor: WindowMonitorService
     private let widgetMonitor: WidgetMonitorService
@@ -36,6 +38,7 @@ final class NotificationMoverCoordinator: NSObject {
     init(
         configurationManager: ConfigurationManager = .shared,
         accessibilityManager: AccessibilityManager = .shared,
+        permissionService: AccessibilityPermissionService = .shared,
         positioningService: NotificationPositioningService = .shared,
         windowMonitor: WindowMonitorService = .shared,
         widgetMonitor: WidgetMonitorService = .shared,
@@ -45,6 +48,7 @@ final class NotificationMoverCoordinator: NSObject {
     ) {
         self.configurationManager = configurationManager
         self.accessibilityManager = accessibilityManager
+        self.permissionService = permissionService
         self.positioningService = positioningService
         self.windowMonitor = windowMonitor
         self.widgetMonitor = widgetMonitor
@@ -53,7 +57,6 @@ final class NotificationMoverCoordinator: NSObject {
         // Use provided managers or create new instances
         let menuBarMgr = menuBarManager ?? MenuBarManager()
         self.menuBarManager = menuBarMgr
-        self.menuBarManager.setCoordinator(self)
 
         let launchAgentMgr = launchAgentManager ?? LaunchAgentManager()
         self.launchAgentManager = launchAgentMgr
@@ -66,7 +69,7 @@ final class NotificationMoverCoordinator: NSObject {
         // Set up configuration observers
         setupConfigurationObservers()
 
-        // Set up menu bar manager coordinator reference
+        // Set up menu bar manager coordinator reference (after super.init)
         menuBarMgr.setCoordinator(self)
     }
 
@@ -103,7 +106,7 @@ final class NotificationMoverCoordinator: NSObject {
     func applicationWillBecomeActive(_ notification: Notification) {
         // Re-check accessibility permissions when app becomes active
         if permissionWindow != nil && permissionWindow?.isVisible == true {
-            let isGranted = accessibilityManager.checkPermissions()
+            let isGranted = permissionService.checkPermissions()
             if isGranted {
                 logger.info("Permission detected as granted on app activation")
                 permissionWindow?.updateStatus(granted: true)
@@ -125,7 +128,7 @@ final class NotificationMoverCoordinator: NSObject {
     // MARK: - Permission Management
 
     private func checkAccessibilityPermissions() {
-        let isGranted = accessibilityManager.checkPermissions()
+        let isGranted = permissionService.checkPermissions()
 
         logger.info("Accessibility permission check: \(isGranted ? "granted" : "denied")")
 
@@ -154,10 +157,6 @@ final class NotificationMoverCoordinator: NSObject {
     private func startAllServices() {
         logger.info("Starting all services...")
 
-        // Set up monitor callbacks
-        windowMonitor.setNotificationMover(self)
-        widgetMonitor.setNotificationMover(self)
-
         // Start monitoring
         if configurationManager.isEnabled {
             windowMonitor.startMonitoring()
@@ -179,7 +178,7 @@ final class NotificationMoverCoordinator: NSObject {
     // MARK: - UI Coordination
 
     private func showPermissionWindow() {
-        permissionWindow = PermissionWindow(mover: self)
+        permissionWindow = PermissionWindow(coordinator: self)
         permissionWindow?.show()
     }
 
@@ -335,12 +334,12 @@ extension NotificationMoverCoordinator: CoordinatorAction {
     // MARK: - Permission Actions
 
     func requestAccessibilityPermission() {
-        accessibilityManager.requestPermissions(showPrompt: true)
+        permissionService.requestPermissions(showPrompt: true)
     }
 
     func resetAccessibilityPermission() {
         do {
-            try accessibilityManager.resetPermissions()
+            try permissionService.resetPermissions()
             logger.info("Accessibility permission reset")
         } catch {
             logger.error("Failed to reset permissions: \(error)")
@@ -366,7 +365,7 @@ extension NotificationMoverCoordinator: CoordinatorAction {
 
     func showSettings() {
         if settingsWindow == nil {
-            settingsWindow = SettingsWindow(mover: self)
+            settingsWindow = SettingsWindow(coordinator: self)
         }
         settingsWindow?.show()
     }

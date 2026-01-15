@@ -83,16 +83,10 @@ class UICoordinator: NSObject {
 
     /// Close all windows
     func closeAllWindows() {
-        settingsViewController?.window?.close()
+        // Note: ViewControllers manage their own windows lifecycle
         settingsViewController = nil
-
-        permissionViewController?.window?.close()
         permissionViewController = nil
-
-        diagnosticViewController?.window?.close()
         diagnosticViewController = nil
-
-        aboutViewController?.window?.close()
         aboutViewController = nil
     }
 
@@ -153,7 +147,7 @@ class UICoordinator: NSObject {
     // MARK: - Helpers
 
     private func debugLog(_ message: String) {
-        LoggingService.shared.log(message, category: "UICoordinator")
+        LoggingService.shared.debug(message)
     }
 
     deinit {

@@ -59,7 +59,7 @@ class SettingsViewController: NSViewController {
     }
 
     private func setupUI() {
-        guard let contentView = view else { return }
+        let contentView = view
 
         // Golden ratio spacing system
         let phi: CGFloat = 1.618

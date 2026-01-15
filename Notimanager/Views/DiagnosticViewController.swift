@@ -55,7 +55,7 @@ class DiagnosticViewController: NSViewController {
     }
 
     private func setupUI() {
-        guard let contentView = view else { return }
+        let contentView = view
 
         let windowWidth: CGFloat = 800
         let windowHeight: CGFloat = 600
