@@ -194,8 +194,13 @@ public class TestDataSeeder {
         print("Registered Collections: \(testDataRegistry.count)")
         
         for (key, value) in testDataRegistry {
-            if let collection = value as? TestDataCollection<Any> {
-                print("  - \(key): \(collection.records.count) records")
+            // Use Mirror to introspect the collection type and get count
+            let mirror = Mirror(reflecting: value)
+            if let records = mirror.children.first(where: { $0.label == "records" })?.value {
+                let countMirror = Mirror(reflecting: records)
+                print("  - \(key): \(countMirror.children.count) records")
+            } else {
+                print("  - \(key): (collection)")
             }
         }
         

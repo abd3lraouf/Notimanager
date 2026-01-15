@@ -301,6 +301,12 @@ protocol AccessibilityPermissionProtocol {
 // SizeConstraints is defined in NotificationMoverProtocols.swift to avoid ambiguity
 // PermissionStatus is defined below
 
+/// Status of accessibility permissions
+enum PermissionStatus {
+    case granted
+    case denied
+}
+
 /// macOS version categories
 enum MacOSVersion {
     case sequoia  // macOS 15+

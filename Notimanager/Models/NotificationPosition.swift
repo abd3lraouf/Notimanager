@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import AppKit
 
 enum NotificationPosition: String, CaseIterable, Codable {
     case topLeft = "top-left"
