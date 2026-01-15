@@ -136,12 +136,7 @@ protocol AccessibilityPermissionManaging {
     func observePermissionChanges(_ callback: @escaping (PermissionStatus) -> Void)
 }
 
-/// Accessibility permission status
-enum PermissionStatus {
-    case granted
-    case denied
-    case unknown
-}
+// PermissionStatus is defined in AccessibilityAPIProtocol.swift to avoid duplication
 
 // MARK: - Notification Discovery
 
@@ -197,6 +192,20 @@ struct NotificationWindow: Identifiable, Equatable {
     static func == (lhs: NotificationWindow, rhs: NotificationWindow) -> Bool {
         lhs.id == rhs.id
     }
+}
+
+// MARK: - Supporting Types
+
+/// Size constraints for element matching
+// Import from AccessibilityAPIProtocol module (internal reference)
+// The actual SizeConstraints struct is defined in AccessibilityAPIProtocol.swift
+
+// Forward declaration to resolve ambiguity
+struct SizeConstraints {
+    let minWidth: CGFloat
+    let minHeight: CGFloat
+    let maxWidth: CGFloat
+    let maxHeight: CGFloat
 }
 
 // MARK: - Re-export NotificationPosition

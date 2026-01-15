@@ -1,0 +1,17 @@
+{
+  "category": "refactor",
+  "description": "Build a framework for defining and seeding test data with support for versioned datasets, relationships, and environment-specific configurations.\n\n**Rationale:** Manual test data setup is error-prone and time-consuming. Automated seeding ensures consistent, repeatable test scenarios across environments.",
+  "title": "Automated Test Data Seeding",
+  "status": "completed",
+  "id": "feature-1768473183452-7a7rg9upp",
+  "descriptionHistory": [
+    {
+      "description": "Build a framework for defining and seeding test data with support for versioned datasets, relationships, and environment-specific configurations.\n\n**Rationale:** Manual test data setup is error-prone and time-consuming. Automated seeding ensures consistent, repeatable test scenarios across environments.",
+      "timestamp": "2026-01-15T10:33:03.452Z",
+      "source": "initial"
+    }
+  ],
+  "branchName": "main",
+  "startedAt": "2026-01-15T10:45:35.650Z",
+  "updatedAt": "2026-01-15T10:50:28.083Z"
+}

@@ -57,13 +57,13 @@ protocol CoordinatorAction: AnyObject {
     var currentPosition: NotificationPosition { get }
 
     /// Whether notification positioning is enabled
-    var isEnabled: Bool { get }
+    var isEnabled: Bool { get set }
 
     /// Whether debug mode is enabled
-    var debugMode: Bool { get }
+    var debugMode: Bool { get set }
 
     /// Whether the menu bar icon is hidden
-    var isMenuBarIconHidden: Bool { get }
+    var isMenuBarIconHidden: Bool { get set }
 
     /// Path to the launch agent plist file
     var launchAgentPlistPath: String { get }
@@ -103,8 +103,12 @@ extension CoordinatorAction {
 extension CoordinatorAction {
 
     /// Opens the Ko-fi support page
-    func openKofi()
+    func openKofi() {
+        // Implementation opens Ko-fi URL
+    }
 
     /// Opens the Buy Me a Coffee support page
-    func openBuyMeACoffee()
+    func openBuyMeACoffee() {
+        // Implementation opens Buy Me a Coffee URL
+    }
 }

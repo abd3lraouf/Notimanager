@@ -1,0 +1,44 @@
+{
+  "statistics" : {
+    "slowTestCount" : 2,
+    "totalTests" : 15,
+    "passedTests" : 14,
+    "skippedTests" : 0,
+    "slowestTest" : {
+      "testName" : "testVerySlowExample",
+      "timestamp" : 790166893.288485,
+      "className" : "ProfilingExampleTests",
+      "duration" : 3.0011640787124634,
+      "status" : "passed"
+    },
+    "totalDuration" : 10.680852890014648,
+    "averageDuration" : 0.7120568593343098,
+    "failedTests" : 1
+  },
+  "generatedAt" : 790166898.947932,
+  "slowTests" : [
+    {
+      "testName" : "testSlowExample",
+      "timestamp" : 790166890.287316,
+      "className" : "ProfilingExampleTests",
+      "duration" : 1.5031429529190063,
+      "status" : "passed"
+    },
+    {
+      "testName" : "testVerySlowExample",
+      "timestamp" : 790166893.288485,
+      "className" : "ProfilingExampleTests",
+      "duration" : 3.0011640787124634,
+      "status" : "passed"
+    }
+  ],
+  "suggestions" : [
+    {
+      "priority" : "high",
+      "estimatedImprovement" : "30-60% reduction in execution time",
+      "description" : "You have 15 tests. Enabling parallel execution could significantly reduce total test time.",
+      "title" : "Enable Test Parallelization",
+      "type" : "parallelization"
+    }
+  ]
+}

@@ -298,13 +298,8 @@ protocol AccessibilityPermissionProtocol {
 
 // MARK: - Supporting Types
 
-/// Size constraints for element matching
-struct SizeConstraints {
-    let minWidth: CGFloat
-    let minHeight: CGFloat
-    let maxWidth: CGFloat
-    let maxHeight: CGFloat
-}
+// SizeConstraints is defined in NotificationMoverProtocols.swift to avoid ambiguity
+// PermissionStatus is defined below
 
 /// Accessibility permission status
 enum PermissionStatus {

@@ -1,0 +1,30 @@
+{
+  "category": "refactor",
+  "description": "I want to improve the NotificationMover.swift it's overwhelmed and most of the features of it are already extracted ",
+  "title": "",
+  "images": [],
+  "imagePaths": [],
+  "textFilePaths": [],
+  "skipTests": false,
+  "model": "opus",
+  "thinkingLevel": "none",
+  "reasoningEffort": "none",
+  "priority": 1,
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "dependencies": [],
+  "workMode": "auto",
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1768473876347-vcnx451ow",
+  "descriptionHistory": [
+    {
+      "description": "I want to improve the NotificationMover.swift it's overwhelmed and most of the features of it are already extracted ",
+      "timestamp": "2026-01-15T10:44:36.424Z",
+      "source": "initial"
+    }
+  ],
+  "branchName": "feature/main-1768473896625-yofa",
+  "startedAt": "2026-01-15T10:45:38.614Z",
+  "updatedAt": "2026-01-15T11:19:36.195Z"
+}

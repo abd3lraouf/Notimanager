@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Profiling Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { color: #333; }
+        .stat { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .slow-test { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .suggestion { background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .priority-high { border-left: 4px solid #dc3545; }
+        .priority-medium { border-left: 4px solid #ffc107; }
+        .priority-low { border-left: 4px solid #28a745; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Profiling Report</h1>
+        
+        <div class="stat">
+            <strong>Total Tests:</strong> 15<br>
+            <strong>Pass Rate:</strong> 93.3%<br>
+            <strong>Total Duration:</strong> 10.21s<br>
+            <strong>Average Duration:</strong> 0.68s<br>
+            <strong>Slow Tests:</strong> 2
+        </div>
+        
+        <h2>🐌 Slow Tests</h2>
+    <div class="slow-test">
+        <strong>ProfilingExampleTests.testSlowExample</strong><br>
+        Duration: 1.505s<br>
+        Status: PASSED
+    </div>
+    <div class="slow-test">
+        <strong>ProfilingExampleTests.testVerySlowExample</strong><br>
+        Duration: 3.005s<br>
+        Status: PASSED
+    </div>
+        
+        <h2>💡 Optimization Suggestions</h2>
+    <div class="suggestion priority-high">
+        <strong>Enable Test Parallelization</strong> <span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">HIGH</span><br>
+        You have 15 tests. Enabling parallel execution could significantly reduce total test time.<br>
+        <small>Type: Parallelization</small>
+    </div>
+        
+        <p><em>Generated on 2026-01-15 10:48:07 +0000</em></p>
+    </div>
+</body>
+</html>

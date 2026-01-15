@@ -1,0 +1,17 @@
+{
+  "category": "enhancement",
+  "description": "Implement error boundary components that catch runtime errors and display friendly error messages with specific recovery actions, such as 'retry operation', 'view logs', or 'contact support'.\n\n**Rationale:** Application crashes leave users confused and stranded. Helpful error messaging with next steps transforms a dead-end into a resolvable situation.",
+  "title": "Error boundaries with recovery suggestions",
+  "status": "completed",
+  "id": "feature-1768473402161-clb91ezpr",
+  "descriptionHistory": [
+    {
+      "description": "Implement error boundary components that catch runtime errors and display friendly error messages with specific recovery actions, such as 'retry operation', 'view logs', or 'contact support'.\n\n**Rationale:** Application crashes leave users confused and stranded. Helpful error messaging with next steps transforms a dead-end into a resolvable situation.",
+      "timestamp": "2026-01-15T10:36:42.162Z",
+      "source": "initial"
+    }
+  ],
+  "branchName": "main",
+  "startedAt": "2026-01-15T10:36:56.897Z",
+  "updatedAt": "2026-01-15T10:37:25.943Z"
+}

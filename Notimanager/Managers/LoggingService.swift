@@ -131,4 +131,9 @@ extension LoggingService {
     func diagnosticLog(_ message: String) {
         diagnostic(message)
     }
+
+    /// Generic log function - compatible with existing code calling .log()
+    func log(_ message: String) {
+        info(message)
+    }
 }

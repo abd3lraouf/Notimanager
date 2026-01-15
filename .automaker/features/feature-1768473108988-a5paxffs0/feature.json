@@ -1,0 +1,17 @@
+{
+  "category": "chore",
+  "description": "Create reusable test fixtures and patterns for common integration scenarios like database interactions, API calls, and message queue handling.\n\n**Rationale:** Integration tests are often neglected due to complexity; standardizing templates makes them faster to write and more reliable.",
+  "title": "Integration Test Templates",
+  "status": "completed",
+  "id": "feature-1768473108988-a5paxffs0",
+  "descriptionHistory": [
+    {
+      "description": "Create reusable test fixtures and patterns for common integration scenarios like database interactions, API calls, and message queue handling.\n\n**Rationale:** Integration tests are often neglected due to complexity; standardizing templates makes them faster to write and more reliable.",
+      "timestamp": "2026-01-15T10:31:48.988Z",
+      "source": "initial"
+    }
+  ],
+  "branchName": "main",
+  "startedAt": "2026-01-15T10:38:10.430Z",
+  "updatedAt": "2026-01-15T10:48:12.633Z"
+}

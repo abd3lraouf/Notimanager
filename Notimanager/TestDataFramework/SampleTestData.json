@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "environment": "universal",
+  "records": [
+    {
+      "id": "sample_notification_001",
+      "version": "1.0",
+      "environment": "universal",
+      "tags": ["sample", "basic"],
+      "relationships": {},
+      "title": "Sample Notification",
+      "body": "This is a sample notification loaded from JSON",
+      "position": "topMiddle",
+      "category": "sample",
+      "size": "banner",
+      "priority": "normal",
+      "shouldBeIntercepted": true,
+      "displayDuration": 5.0,
+      "sound": null,
+      "attachments": []
+    },
+    {
+      "id": "sample_notification_002",
+      "version": "1.0",
+      "environment": "universal",
+      "tags": ["sample", "advanced"],
+      "relationships": {},
+      "title": "Advanced Sample",
+      "body": "This is an advanced sample notification with more complex content",
+      "position": "deadCenter",
+      "category": "sample",
+      "size": "alert",
+      "priority": "high",
+      "shouldBeIntercepted": true,
+      "displayDuration": 10.0,
+      "sound": "default",
+      "attachments": [
+        {
+          "id": "sample_attachment_001",
+          "type": "image",
+          "url": "https://example.com/sample.png",
+          "data": null
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "description": "Sample test data loaded from JSON file",
+    "author": "TestDataFramework",
+    "created": "2025-01-15",
+    "format": "json"
+  }
+}

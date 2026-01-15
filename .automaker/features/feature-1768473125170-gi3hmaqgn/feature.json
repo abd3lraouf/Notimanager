@@ -1,0 +1,17 @@
+{
+  "category": "chore",
+  "description": "Add profiling to identify slow tests and suggest optimizations like parallelization, better fixtures, or test splitting strategies.\n\n**Rationale:** Slow test suites delay feedback loops. Optimizing test execution directly improves developer productivity and CI costs.",
+  "title": "Test Execution Profiler",
+  "status": "completed",
+  "id": "feature-1768473125170-gi3hmaqgn",
+  "descriptionHistory": [
+    {
+      "description": "Add profiling to identify slow tests and suggest optimizations like parallelization, better fixtures, or test splitting strategies.\n\n**Rationale:** Slow test suites delay feedback loops. Optimizing test execution directly improves developer productivity and CI costs.",
+      "timestamp": "2026-01-15T10:32:05.170Z",
+      "source": "initial"
+    }
+  ],
+  "branchName": "main",
+  "startedAt": "2026-01-15T10:45:35.580Z",
+  "updatedAt": "2026-01-15T10:48:42.349Z"
+}

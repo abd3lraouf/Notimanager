@@ -1,0 +1,17 @@
+{
+  "category": "enhancement",
+  "description": "Build a unified toast notification system for background operations like test generation, data seeding, and report generation. Include success, error, and info variants with auto-dismiss timers.\n\n**Rationale:** Users initiate async actions and need confirmation when they complete or fail without being interrupted by modal dialogs that block workflow.",
+  "title": "Toast notification system for async operations",
+  "status": "completed",
+  "id": "feature-1768473391770-29huxmt4t",
+  "descriptionHistory": [
+    {
+      "description": "Build a unified toast notification system for background operations like test generation, data seeding, and report generation. Include success, error, and info variants with auto-dismiss timers.\n\n**Rationale:** Users initiate async actions and need confirmation when they complete or fail without being interrupted by modal dialogs that block workflow.",
+      "timestamp": "2026-01-15T10:36:31.771Z",
+      "source": "initial"
+    }
+  ],
+  "branchName": "main",
+  "startedAt": "2026-01-15T10:43:14.423Z",
+  "updatedAt": "2026-01-15T10:46:13.759Z"
+}

@@ -1,0 +1,30 @@
+{
+  "category": "Uncategorized",
+  "description": "I want to improve the NotificationMover.swift it's overwhelmed and most of the features of it are already extracted ",
+  "title": "",
+  "images": [],
+  "imagePaths": [],
+  "textFilePaths": [],
+  "skipTests": false,
+  "model": "GLM-4.7",
+  "thinkingLevel": "none",
+  "reasoningEffort": "none",
+  "branchName": null,
+  "priority": 1,
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "dependencies": [],
+  "workMode": "custom",
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1768472959307-pedxzuvgm",
+  "descriptionHistory": [
+    {
+      "description": "I want to improve the NotificationMover.swift it's overwhelmed and most of the features of it are already extracted ",
+      "timestamp": "2026-01-15T10:29:19.343Z",
+      "source": "initial"
+    }
+  ],
+  "startedAt": "2026-01-15T10:45:38.508Z",
+  "updatedAt": "2026-01-15T10:49:11.001Z"
+}

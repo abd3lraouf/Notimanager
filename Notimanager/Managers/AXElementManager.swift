@@ -11,13 +11,7 @@ import ApplicationServices
 import AppKit
 import Foundation
 
-/// Size constraints for element matching
-struct SizeConstraints {
-    let minWidth: CGFloat
-    let minHeight: CGFloat
-    let maxWidth: CGFloat
-    let maxHeight: CGFloat
-}
+// SizeConstraints is defined in NotificationMoverProtocols.swift to avoid duplication
 
 /// Centralized Accessibility API element operations
 @available(macOS 10.15, *)
