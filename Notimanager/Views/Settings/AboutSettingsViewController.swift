@@ -2,7 +2,7 @@
 //  AboutSettingsViewController.swift
 //  Notimanager
 //
-//  About settings pane following Apple's HIG standards
+//  About settings pane with semantic typography and improved accessibility
 //
 
 import Cocoa
@@ -55,6 +55,7 @@ final class AboutSettingsViewController: NSViewController, SettingsPane {
         super.viewDidLoad()
         setupUI()
         populateInfo()
+        setupAccessibility()
         preferredContentSize = NSSize(width: 320, height: 260)
     }
 
@@ -82,45 +83,45 @@ final class AboutSettingsViewController: NSViewController, SettingsPane {
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.wantsLayer = true
-        iconView.layer?.cornerRadius = 12
+        iconView.layer?.cornerRadius = Layout.mediumCornerRadius
         iconView.layer?.masksToBounds = true
         containerView.addSubview(iconView)
 
-        // App Name - system font, semibold
+        // App Name - using semantic typography
         appNameLabel = NSTextField(labelWithString: "")
-        appNameLabel.font = NSFont.systemFont(ofSize: 20, weight: .semibold)
+        appNameLabel.font = Typography.title2
         appNameLabel.alignment = .center
         appNameLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(appNameLabel)
 
-        // Version - system font, regular
+        // Version - using semantic typography
         versionLabel = NSTextField(labelWithString: "")
-        versionLabel.font = NSFont.systemFont(ofSize: 13, weight: .regular)
+        versionLabel.font = Typography.body
         versionLabel.alignment = .center
-        versionLabel.textColor = .secondaryLabelColor
+        versionLabel.textColor = Colors.secondaryLabel
         versionLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(versionLabel)
 
         // Divider line
         let divider = NSView()
         divider.wantsLayer = true
-        divider.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        divider.layer?.backgroundColor = Colors.separator.cgColor
         divider.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(divider)
 
-        // Copyright
+        // Copyright - using semantic typography
         copyrightLabel = NSTextField(labelWithString: "")
-        copyrightLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        copyrightLabel.font = Typography.caption2
         copyrightLabel.alignment = .center
-        copyrightLabel.textColor = .tertiaryLabelColor
+        copyrightLabel.textColor = Colors.tertiaryLabel
         copyrightLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(copyrightLabel)
 
-        // Credits
+        // Credits - using semantic typography
         creditLabel = NSTextField(labelWithString: "")
-        creditLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        creditLabel.font = Typography.caption2
         creditLabel.alignment = .center
-        creditLabel.textColor = .tertiaryLabelColor
+        creditLabel.textColor = Colors.tertiaryLabel
         creditLabel.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(creditLabel)
 
@@ -146,33 +147,33 @@ final class AboutSettingsViewController: NSViewController, SettingsPane {
             iconView.heightAnchor.constraint(equalToConstant: 64),
 
             // App name
-            appNameLabel.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 12),
+            appNameLabel.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: Spacing.pt12),
             appNameLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             appNameLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
 
             // Version
-            versionLabel.topAnchor.constraint(equalTo: appNameLabel.bottomAnchor, constant: 4),
+            versionLabel.topAnchor.constraint(equalTo: appNameLabel.bottomAnchor, constant: Spacing.pt4),
             versionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             versionLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
 
             // Divider
-            divider.topAnchor.constraint(equalTo: versionLabel.bottomAnchor, constant: 16),
+            divider.topAnchor.constraint(equalTo: versionLabel.bottomAnchor, constant: Spacing.pt16),
             divider.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
             divider.widthAnchor.constraint(equalToConstant: 200),
-            divider.heightAnchor.constraint(equalToConstant: 1),
+            divider.heightAnchor.constraint(equalToConstant: Border.thin),
 
             // Copyright
-            copyrightLabel.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 16),
-            copyrightLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 8),
-            copyrightLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
+            copyrightLabel.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: Spacing.pt16),
+            copyrightLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt8),
+            copyrightLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt8),
 
             // Credits
-            creditLabel.topAnchor.constraint(equalTo: copyrightLabel.bottomAnchor, constant: 4),
-            creditLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 8),
-            creditLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
+            creditLabel.topAnchor.constraint(equalTo: copyrightLabel.bottomAnchor, constant: Spacing.pt4),
+            creditLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt8),
+            creditLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt8),
 
             // Link button
-            linkButton.topAnchor.constraint(equalTo: creditLabel.bottomAnchor, constant: 8),
+            linkButton.topAnchor.constraint(equalTo: creditLabel.bottomAnchor, constant: Spacing.pt8),
             linkButton.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
             linkButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
         ])
@@ -188,12 +189,16 @@ final class AboutSettingsViewController: NSViewController, SettingsPane {
             string: username,
             attributes: [
                 .foregroundColor: NSColor.linkColor,
-                .font: NSFont.systemFont(ofSize: 11, weight: .regular),
+                .font: Typography.caption2,
                 .underlineStyle: NSUnderlineStyle.single.rawValue,
                 .cursor: NSCursor.pointingHand
             ]
         )
         linkButton.attributedTitle = attributedTitle
+
+        // Improved accessibility
+        linkButton.setAccessibilityTitle("View \(username) on GitHub")
+        linkButton.setAccessibilityHelp("Opens the developer's GitHub profile in your browser")
     }
 
     private func populateInfo() {
@@ -201,6 +206,24 @@ final class AboutSettingsViewController: NSViewController, SettingsPane {
         versionLabel.stringValue = viewModel.versionDisplayString
         copyrightLabel.stringValue = viewModel.copyright
         creditLabel.stringValue = viewModel.creditsDisplayString
+    }
+
+    // MARK: - Accessibility
+
+    private func setupAccessibility() {
+        view.setAccessibilityElement(true)
+        view.setAccessibilityRole(.group)
+        view.setAccessibilityLabel("About Notimanager")
+
+        // Icon accessibility
+        iconView.setAccessibilityLabel("Notimanager application icon")
+        iconView.setAccessibilityRole(.image)
+
+        // Labels are static text
+        appNameLabel.setAccessibilityRole(.staticText)
+        versionLabel.setAccessibilityRole(.staticText)
+        copyrightLabel.setAccessibilityRole(.staticText)
+        creditLabel.setAccessibilityRole(.staticText)
     }
 
     // MARK: - Actions
