@@ -11,6 +11,9 @@ This guide covers building and releasing Notimanager.
 # Prepare for release (interactive version bump and tagging)
 ./scripts/build.sh prepare
 
+# Quick local dev DMG (fast, opens for testing)
+./scripts/build.sh dev-dmg
+
 # Show all available commands
 ./scripts/build.sh help
 ```
@@ -25,9 +28,60 @@ This guide covers building and releasing Notimanager.
 | `build.sh archive` | Create Xcode archive |
 | `build.sh export` | Export app from archive |
 | `build.sh zip` | Create ZIP distribution |
-| `build.sh dmg` | Create DMG distribution |
+| `build.sh dmg` | Create DMG distribution (release mode) |
+| `build.sh dev-dmg` | Create DMG distribution (dev mode - fast, opens for testing) |
 | `build.sh all` | Run full release pipeline |
 | `build.sh prepare` | Prepare for release (interactive) |
+
+## Local Development Workflow
+
+For rapid iteration during development, use the dev-dmg command:
+
+```bash
+# 1. Export the app from archive
+./scripts/build.sh export
+
+# 2. Create DMG in dev mode (fast, opens for testing)
+./scripts/build.sh dev-dmg
+
+# Or use the DMG script directly for more options:
+./scripts/create-dmg.sh --dev --test    # Create and open DMG
+./scripts/create-dmg.sh --dev --verify  # Create and verify DMG
+```
+
+**Dev mode advantages:**
+- Faster build times (minimal code signing)
+- Automatically opens DMG for testing
+- No certificate required
+- Uses ad-hoc signing
+
+**Direct DMG script options:**
+
+```bash
+# Dev mode (fast, for local testing)
+./scripts/create-dmg.sh --dev
+
+# Release mode (with code signing)
+./scripts/create-dmg.sh --release
+
+# Create and test DMG
+./scripts/create-dmg.sh --dev --test
+
+# Verify DMG after creation
+./scripts/create-dmg.sh --dev --verify
+
+# Custom output filename
+./scripts/create-dmg.sh --dev --output Notimanager-Dev.dmg
+
+# Use specific certificate
+./scripts/create-dmg.sh --release --sign "Developer ID Application: Name"
+
+# Skip code signing entirely
+./scripts/create-dmg.sh --no-sign
+
+# Show all options
+./scripts/create-dmg.sh --help
+```
 
 ## Release Workflow
 
@@ -41,6 +95,9 @@ Make your changes and test:
 
 # Development build
 ./scripts/build.sh build
+
+# Quick DMG test (after export)
+./scripts/build.sh dev-dmg
 ```
 
 ### 2. Update Changelog
@@ -176,28 +233,90 @@ XCODE_VERSION="15.3"  # Change to your version
 
 ### DMG Creation
 
-The build script uses [`create-dmg`](https://github.com/sindresorhus/create-dmg) for beautiful DMG creation.
+The build script uses [`create-dmg`](https://github.com/create-dmg/create-dmg) for beautiful DMG creation.
 
 **Requirements:**
-- Node.js 18+ and npm
-- Or `npx` (comes with Node.js)
+- `create-dmg` shell script (install via Homebrew)
 
-The script automatically installs `create-dmg` via `npx` if not available.
-
-**Manual DMG creation:**
 ```bash
-# Using the script
+brew install create-dmg
+```
+
+**DMG creation modes:**
+
+```bash
+# Quick dev DMG (fast, for local testing)
+./scripts/build.sh dev-dmg
+
+# Release DMG (with code signing)
 ./scripts/build.sh dmg
 
-# Or directly
-./scripts/create-dmg.sh
+# Full pipeline (includes DMG)
+./scripts/build.sh all
+```
+
+**Direct DMG script usage:**
+```bash
+# Show all options
+./scripts/create-dmg.sh --help
+
+# Dev mode (fast, for local testing)
+./scripts/create-dmg.sh --dev
+
+# Release mode (with code signing if available)
+./scripts/create-dmg.sh --release
+
+# Create and test (opens DMG after creation)
+./scripts/create-dmg.sh --dev --test
+
+# Verify DMG after creation
+./scripts/create-dmg.sh --dev --verify
+
+# Custom output filename
+./scripts/create-dmg.sh --dev --output Notimanager-Dev.dmg
+
+# Use specific certificate for DMG code signing
+./scripts/create-dmg.sh --release --sign "Developer ID Application: Name"
+
+# Skip code signing entirely
+./scripts/create-dmg.sh --no-sign
 ```
 
 The DMG will have:
 - Beautiful disk image with app icon
-- Drag-and-drop installation
+- Drag-and-drop installation to Applications folder
+- Proper window positioning and sizing
+- Hidden app extension
+- Custom icon size and positioning
 - Proper code signing (if certificate available)
-- Version number in filename
+
+**DMG Verification:**
+
+The script includes a verification mode that checks:
+- DMG format and structure
+- Checksum validity
+- Mount capability
+- App bundle presence inside DMG
+
+```bash
+# Create and verify
+./scripts/create-dmg.sh --dev --verify
+```
+
+**Customizing DMG Appearance:**
+
+You can customize the DMG appearance by editing the configuration variables in `scripts/create-dmg.sh`:
+
+```bash
+# DMG appearance settings (at the top of the script)
+VOLNAME="${APP_NAME}"           # Volume name
+WINDOW_SIZE="600 400"           # Window width height
+WINDOW_POS="400 300"            # Window position x y
+ICON_SIZE="100"                 # Icon size in pixels
+APP_ICON_POS="150 190"          # App icon position x y
+DROP_LINK_POS="450 190"         # Applications link position x y
+BACKGROUND_IMG=""               # Optional background image path
+```
 
 ## Manual Build (Without Script)
 

@@ -22,10 +22,12 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Install create-dmg
+        run: |
+          echo "📦 Installing create-dmg..."
+          brew install create-dmg
+          echo "✅ create-dmg installed"
+          create-dmg --version || true
 
       - name: Extract version from tag
         id: version
@@ -124,11 +126,13 @@ jobs:
       - name: Create DMG
         run: |
           echo "💿 Creating DMG installer..."
-          ./scripts/create-dmg.sh
+          ./scripts/create-dmg.sh --dev --no-sign
           if [ -f "build/Notimanager-macOS.dmg" ]; then
             echo "✅ DMG created"
+            ls -lh build/Notimanager-macOS.dmg
           else
             echo "⚠️  DMG not created"
+            exit 1
           fi
 
       - name: Generate changelog

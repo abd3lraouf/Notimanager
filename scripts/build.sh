@@ -12,7 +12,8 @@
 #   archive         Create Xcode archive
 #   export          Export app from archive
 #   zip             Create ZIP distribution
-#   dmg             Create DMG distribution
+#   dmg             Create DMG distribution (release mode)
+#   dev-dmg         Create DMG distribution (dev mode - faster, opens for testing)
 #   all             Run full release pipeline (archive, export, zip, dmg)
 #   prepare         Prepare for release (update changelog, tag)
 #   help            Show this help message
@@ -291,19 +292,50 @@ create_dmg() {
     if [ -f "scripts/create-dmg.sh" ]; then
         log_step "Running DMG creation script..."
 
-        # Check for certificate
+        # Check for certificate and use release mode
         if security find-identity -v -p codesigning 2>/dev/null | grep -q "${CERTIFICATE_NAME}"; then
-            # Use certificate
-            echo "y" | ./scripts/create-dmg.sh > /dev/null 2>&1
+            # Use release mode with certificate
+            ./scripts/create-dmg.sh --release
         else
-            # Ad-hoc signing
-            echo "n" | ./scripts/create-dmg.sh > /dev/null 2>&1
+            # Use dev mode (ad-hoc signing)
+            ./scripts/create-dmg.sh --dev
         fi
 
         if [ -f "${DMG_OUTPUT}" ]; then
             DMG_SIZE=$(du -h "${DMG_OUTPUT}" | cut -f1)
             log_success "DMG created: ${DMG_OUTPUT}"
             log_info "Size: ${DMG_SIZE}"
+        else
+            log_error "DMG creation failed"
+            exit 1
+        fi
+    else
+        log_error "DMG script not found at scripts/create-dmg.sh"
+        exit 1
+    fi
+}
+
+# Create DMG for local development
+create_dmg_dev() {
+    print_header "Creating DMG (Local Dev)"
+
+    if [ ! -d "${APP_BUNDLE}" ]; then
+        log_error "App not found at ${APP_BUNDLE}"
+        log_info "Run: $0 export"
+        exit 1
+    fi
+
+    if [ -f "scripts/create-dmg.sh" ]; then
+        log_step "Running DMG creation script in dev mode..."
+
+        # Use dev mode (fast, minimal signing)
+        ./scripts/create-dmg.sh --dev --test
+
+        if [ -f "${DMG_OUTPUT}" ]; then
+            DMG_SIZE=$(du -h "${DMG_OUTPUT}" | cut -f1)
+            log_success "DMG created: ${DMG_OUTPUT}"
+            log_info "Size: ${DMG_SIZE}"
+            log_info "DMG has been opened for testing"
         else
             log_error "DMG creation failed"
             exit 1
@@ -428,7 +460,8 @@ ${BOLD}Commands:${NC}
   ${CYAN}archive${NC}         Create Xcode archive
   ${CYAN}export${NC}          Export app from archive
   ${CYAN}zip${NC}             Create ZIP distribution
-  ${CYAN}dmg${NC}             Create DMG distribution
+  ${CYAN}dmg${NC}             Create DMG distribution (release mode)
+  ${CYAN}dev-dmg${NC}         Create DMG distribution (dev mode - fast, opens for testing)
   ${CYAN}all${NC}             Run full release pipeline
   ${CYAN}prepare${NC}         Prepare for release (update version, tag)
   ${CYAN}help${NC}            Show this help message
@@ -438,7 +471,15 @@ ${BOLD}Examples:${NC}
   $0 all              # Run full release pipeline
   $0 archive          # Create archive only
   $0 clean && $0 all  # Clean and rebuild
+  $0 dev-dmg          # Create DMG for local testing
   $0 prepare          # Prepare for release (interactive)
+
+${BOLD}Local Development Workflow:${NC}
+
+  1. Make your changes
+  2. Build:          $0 export
+  3. Test DMG:       $0 dev-dmg
+  4. Iterate as needed
 
 ${BOLD}Release Workflow:${NC}
 
@@ -449,6 +490,15 @@ ${BOLD}Release Workflow:${NC}
   5. Test the build
   6. Push: git push origin main && git push origin vX.Y.Z
   7. GitHub Actions will publish the release
+
+${BOLD}Direct DMG Script Usage:${NC}
+
+  For more DMG options, use the create-dmg script directly:
+    ./scripts/create-dmg.sh --dev       # Fast dev build
+    ./scripts/create-dmg.sh --release   # Release build
+    ./scripts/create-dmg.sh --test      # Create and open DMG
+    ./scripts/create-dmg.sh --verify    # Create and verify DMG
+    ./scripts/create-dmg.sh --help      # Show all options
 
 EOF
 }
@@ -481,6 +531,9 @@ main() {
             ;;
         dmg)
             create_dmg
+            ;;
+        dev-dmg)
+            create_dmg_dev
             ;;
         all)
             release_pipeline
