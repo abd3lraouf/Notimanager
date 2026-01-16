@@ -58,3 +58,5 @@ logs/security/
 build/.certificate_password
 build/*.p12
 build/certificate-base64.txt
+
+*.log

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		78BB662B2F196AC50080C79C /* Settings in Frameworks */ = {isa = PBXBuildFile; productRef = 78BB65722F196A010080C79C /* Settings */; };
+		78LAUNCH01 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 78LAUNCH02 /* LaunchAtLogin */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				78BB662B2F196AC50080C79C /* Settings in Frameworks */,
+				78LAUNCH01 /* LaunchAtLogin in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,6 +119,7 @@
 			name = Notimanager;
 			packageProductDependencies = (
 				78BB65722F196A010080C79C /* Settings */,
+				78LAUNCH02 /* LaunchAtLogin */,
 			);
 			productName = Notimanager;
 			productReference = 7891B99C2EC9D3BF00454386 /* Notimanager.app */;
@@ -170,6 +173,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				78BB65712F196A010080C79C /* XCRemoteSwiftPackageReference "Settings" */,
+				78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7891B99D2EC9D3BF00454386 /* Products */;
@@ -496,6 +500,14 @@
 				minimumVersion = 3.1.2;
 			};
 		};
+		78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin-Modern";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -503,6 +515,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 78BB65712F196A010080C79C /* XCRemoteSwiftPackageReference "Settings" */;
 			productName = Settings;
+		};
+		78LAUNCH02 /* LaunchAtLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
+			productName = LaunchAtLogin;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
