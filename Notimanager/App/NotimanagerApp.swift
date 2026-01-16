@@ -13,15 +13,17 @@ struct NotimanagerApp {
     private static let delegate = NotificationMover()
 
     static func main() {
+        // Initialize NSApplication first before checking single instance
+        let app = NSApplication.shared
+        app.delegate = delegate
+
         // Check if another instance is already running
         if !isSingleInstance() {
             NSLog("Notimanager is already running. Exiting this instance.")
-            NSApp.terminate(nil)
-            return
+            // Use exit instead of terminate to avoid any potential NSApp issues
+            Foundation.exit(0)
         }
 
-        let app: NSApplication = .shared
-        app.delegate = delegate
         app.run()
     }
 
