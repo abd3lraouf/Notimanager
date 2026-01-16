@@ -2,7 +2,7 @@
 //  PositionSettingsViewController.swift
 //  Notimanager
 //
-//  Position settings pane following MonitorControl's design
+//  Position settings pane with Liquid Glass design and improved UX
 //
 
 import Cocoa
@@ -25,12 +25,16 @@ final class PositionSettingsViewController: NSViewController, SettingsPane {
 
     // MARK: - UI Components
 
+    private var scrollView: NSScrollView!
+    private var contentView: NSView!
     private var headerLabel: NSTextField!
     private var descriptionLabel: NSTextField!
+    private var positionGridContainer: LiquidGlassContainer!
     private var positionGridView: PositionGridView!
+    private var testSeparator: LiquidGlassSeparator!
     private var testNotificationButton: NSButton!
     private var testStatusLabel: NSTextField!
-    private var testStatusContainer: NSVisualEffectView!
+    private var testStatusContainer: LiquidGlassContainer!
 
     // MARK: - Properties
 
@@ -54,9 +58,22 @@ final class PositionSettingsViewController: NSViewController, SettingsPane {
     }
 
     override func loadView() {
-        let view = NSView()
-        view.frame = NSRect(x: 0, y: 0, width: 500, height: 520)
-        self.view = view
+        // Create scroll view for better handling of smaller windows
+        scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Create content view
+        contentView = NSView()
+        contentView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.documentView = contentView
+
+        // Set the view as the scroll view
+        self.view = scrollView
 
         setupUI()
     }
@@ -67,7 +84,7 @@ final class PositionSettingsViewController: NSViewController, SettingsPane {
         header.font = Typography.title2
         header.textColor = Colors.label
         header.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(header)
+        contentView.addSubview(header)
         self.headerLabel = header
 
         // Section Description
@@ -78,22 +95,32 @@ final class PositionSettingsViewController: NSViewController, SettingsPane {
         description.font = Typography.body
         description.textColor = Colors.secondaryLabel
         description.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(description)
+        contentView.addSubview(description)
         self.descriptionLabel = description
 
-        // Position Grid Container
+        // Position Grid Container with Liquid Glass effect
+        let gridGlassConfig = LiquidGlassMaterial(
+            material: .titlebar,
+            shadowIntensity: .medium,
+            borderLuminance: 0.25,
+            cornerRadius: Layout.cardCornerRadius
+        )
+        positionGridContainer = LiquidGlassContainer(material: gridGlassConfig)
+        positionGridContainer.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(positionGridContainer)
+
+        // Position Grid View
         let gridView = PositionGridView(selection: currentPosition) { [weak self] newPosition in
             self?.handlePositionChange(newPosition)
         }
         gridView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(gridView)
+        positionGridContainer.addSubview(gridView)
         self.positionGridView = gridView
 
         // Test Notification Section Separator
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(separator)
+        testSeparator = LiquidGlassSeparator()
+        testSeparator.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(testSeparator)
 
         // Test Notification Button
         let testBtn = NSButton(
@@ -103,22 +130,25 @@ final class PositionSettingsViewController: NSViewController, SettingsPane {
         )
         testBtn.bezelStyle = .rounded
         testBtn.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(testBtn)
+
+        // Improved accessibility for test button
+        testBtn.setAccessibilityTitle(NSLocalizedString("Send Test Notification", comment: "Test button title"))
+        testBtn.setAccessibilityHelp(NSLocalizedString("Sends a test notification to verify interception is working", comment: "Accessibility help"))
+
+        contentView.addSubview(testBtn)
         self.testNotificationButton = testBtn
 
-        // Test Status Container (for visual polish)
-        let statusContainer = NSVisualEffectView()
-        statusContainer.material = .contentBackground
-        statusContainer.blendingMode = .withinWindow
-        statusContainer.state = .active
-        statusContainer.wantsLayer = true
-        statusContainer.layer?.cornerRadius = Layout.smallCornerRadius
-        statusContainer.layer?.borderWidth = Border.thin
-        statusContainer.layer?.borderColor = Colors.separator.withAlphaComponent(0.3).cgColor
-        statusContainer.translatesAutoresizingMaskIntoConstraints = false
-        statusContainer.isHidden = true
-        view.addSubview(statusContainer)
-        self.testStatusContainer = statusContainer
+        // Test Status Container with Liquid Glass effect
+        let statusGlassConfig = LiquidGlassMaterial(
+            material: .contentBackground,
+            shadowIntensity: .subtle,
+            borderLuminance: 0.15,
+            cornerRadius: Layout.mediumCornerRadius
+        )
+        testStatusContainer = LiquidGlassContainer(material: statusGlassConfig)
+        testStatusContainer.translatesAutoresizingMaskIntoConstraints = false
+        testStatusContainer.isHidden = true
+        contentView.addSubview(testStatusContainer)
 
         // Test Status Label
         let statusLabel = NSTextField(labelWithString: "")
@@ -126,42 +156,59 @@ final class PositionSettingsViewController: NSViewController, SettingsPane {
         statusLabel.textColor = Colors.secondaryLabel
         statusLabel.alignment = .center
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
-        statusContainer.addSubview(statusLabel)
+        testStatusContainer.addSubview(statusLabel)
         self.testStatusLabel = statusLabel
 
-        // Constraints using DesignTokens spacing
+        // Setup constraints
+        setupConstraints()
+
+        // Configure grid container size
         NSLayoutConstraint.activate([
+            gridView.centerXAnchor.constraint(equalTo: positionGridContainer.centerXAnchor),
+            gridView.centerYAnchor.constraint(equalTo: positionGridContainer.centerYAnchor),
+            positionGridContainer.widthAnchor.constraint(equalToConstant: Layout.gridSize * 2 + Layout.gridSpacing + Spacing.pt32),
+            positionGridContainer.heightAnchor.constraint(equalToConstant: Layout.gridSize * 2 + Layout.gridSpacing + Spacing.pt32)
+        ])
+    }
+
+    private func setupConstraints() {
+        let leadingMargin: CGFloat = Spacing.pt32
+        let trailingMargin: CGFloat = Spacing.pt32
+
+        NSLayoutConstraint.activate([
+            // Content view width constraint
+            contentView.widthAnchor.constraint(equalToConstant: Layout.settingsWindowWidth),
+            contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 500),
+
             // Header
-            headerLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: Spacing.pt32),
-            headerLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Spacing.pt32),
-            headerLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Spacing.pt32),
+            headerLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: Spacing.pt32),
+            headerLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: leadingMargin),
+            headerLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -trailingMargin),
 
             // Description
             descriptionLabel.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: Spacing.pt8),
-            descriptionLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Spacing.pt32),
-            descriptionLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Spacing.pt32),
+            descriptionLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: leadingMargin),
+            descriptionLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -trailingMargin),
 
-            // Grid - centered with consistent margins
-            positionGridView.topAnchor.constraint(equalTo: descriptionLabel.bottomAnchor, constant: Spacing.pt24),
-            positionGridView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            positionGridView.widthAnchor.constraint(equalToConstant: Layout.gridSize * 3 + Layout.gridSpacing * 2),
-            positionGridView.heightAnchor.constraint(equalToConstant: Layout.gridSize * 3 + Layout.gridSpacing * 2),
+            // Grid Container - centered
+            positionGridContainer.topAnchor.constraint(equalTo: descriptionLabel.bottomAnchor, constant: Spacing.pt24),
+            positionGridContainer.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
 
             // Separator
-            separator.topAnchor.constraint(equalTo: positionGridView.bottomAnchor, constant: Spacing.pt32),
-            separator.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Spacing.pt32),
-            separator.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Spacing.pt32),
+            testSeparator.topAnchor.constraint(equalTo: positionGridContainer.bottomAnchor, constant: Spacing.pt32),
+            testSeparator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: leadingMargin),
+            testSeparator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -trailingMargin),
 
             // Test Button
-            testNotificationButton.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: Spacing.pt20),
-            testNotificationButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            testNotificationButton.topAnchor.constraint(equalTo: testSeparator.bottomAnchor, constant: Spacing.pt20),
+            testNotificationButton.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             testNotificationButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 180),
 
             // Status Container
             testStatusContainer.topAnchor.constraint(equalTo: testNotificationButton.bottomAnchor, constant: Spacing.pt12),
-            testStatusContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Spacing.pt32),
-            testStatusContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Spacing.pt32),
-            testStatusContainer.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -Spacing.pt32),
+            testStatusContainer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: leadingMargin),
+            testStatusContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -trailingMargin),
+            testStatusContainer.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -Spacing.pt32),
 
             // Status Label (padded inside container)
             testStatusLabel.topAnchor.constraint(equalTo: testStatusContainer.topAnchor, constant: Spacing.pt12),
@@ -190,6 +237,9 @@ final class PositionSettingsViewController: NSViewController, SettingsPane {
         headerLabel.setAccessibilityElement(false)
         descriptionLabel.setAccessibilityElement(false)
 
+        // Position grid should be accessible
+        positionGridView.setAccessibilityLabel("Notification position grid")
+
         // Status container should announce changes
         testStatusContainer.setAccessibilityElement(true)
         testStatusContainer.setAccessibilityRole(.staticText)
@@ -201,6 +251,9 @@ final class PositionSettingsViewController: NSViewController, SettingsPane {
     private func handlePositionChange(_ newPosition: NotificationPosition) {
         currentPosition = newPosition
         logger.log("Position changed to: \(newPosition.displayName)")
+
+        // Announce change for accessibility
+        AccessibilityManager.shared.announce("Notification position changed to \(newPosition.displayName)")
 
         // Notify configuration change
         NotificationCenter.default.post(
