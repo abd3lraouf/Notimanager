@@ -1,0 +1,253 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Release Tag: $TAG"
+          echo "📦 App Version: $VERSION"
+
+      - name: Configure code signing
+        run: |
+          echo "🔏 Using ad-hoc code signing for distribution"
+          echo "CODE_SIGN_IDENTITY=-" >> $GITHUB_ENV
+          echo "CODE_SIGNING_REQUIRED=NO" >> $GITHUB_ENV
+          echo "CODE_SIGNING_ALLOWED=NO" >> $GITHUB_ENV
+
+      - name: Update build version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" \
+            Notimanager/Resources/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" \
+            Notimanager/Resources/Info.plist
+          echo "✅ Build version updated to $VERSION"
+
+      - name: Install icon generation dependencies
+        run: |
+          echo "📦 Installing librsvg for icon generation..."
+          brew install librsvg
+          echo "✅ Dependencies installed"
+
+      - name: Generate icons
+        run: |
+          echo "🎨 Generating icons from SVG sources..."
+          ./scripts/generate-all-icons.sh
+          echo "✅ Icons generated"
+
+      - name: Build and archive
+        run: |
+          echo "🔨 Building Notimanager with ad-hoc signing..."
+
+          xcodebuild archive \
+            -scheme Notimanager \
+            -archivePath build/Notimanager.xcarchive \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO || exit 1
+
+          echo "✅ Archive created"
+
+      - name: Export app bundle
+        run: |
+          echo "📦 Exporting app bundle..."
+          mkdir -p build/release
+          cp -R build/Notimanager.xcarchive/Products/Applications/Notimanager.app \
+            build/release/Notimanager.app
+
+          # Copy .icns file to app bundle for System Settings
+          if [ -f "Notimanager/Resources/AppIcon.icns" ]; then
+            echo "📦 Copying app icon to bundle..."
+            cp Notimanager/Resources/AppIcon.icns build/release/Notimanager.app/Contents/Resources/
+            echo "✅ App icon copied"
+          fi
+
+          # Verify the app was copied
+          if [ -d "build/release/Notimanager.app" ]; then
+            echo "✅ App bundle exported"
+            ls -la build/release/Notimanager.app
+          else
+            echo "❌ Failed to export app bundle"
+            exit 1
+          fi
+
+      - name: Verify code signature
+        run: |
+          echo "🔍 Verifying code signature..."
+          codesign -dv build/release/Notimanager.app 2>&1 | head -5
+          echo ""
+          echo "📋 Code signature details:"
+          codesign -d -r - build/release/Notimanager.app 2>&1 | head -10
+
+      - name: Create ZIP archive
+        run: |
+          echo "🗜️  Creating release archive..."
+          cd build/release
+          zip -r Notimanager-macOS.zip Notimanager.app
+          cd ../..
+          mv build/release/Notimanager-macOS.zip build/
+          echo "✅ Archive created: build/Notimanager-macOS.zip"
+
+      - name: Create DMG
+        run: |
+          echo "💿 Creating DMG installer..."
+          ./scripts/create-dmg.sh
+          if [ -f "build/Notimanager-macOS.dmg" ]; then
+            echo "✅ DMG created"
+          else
+            echo "⚠️  DMG not created"
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "📋 Generating changelog..."
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Try to get changelog from CHANGELOG.md
+          if [ -f "docs/CHANGELOG.md" ]; then
+            # Extract the section for this version
+            awk "/^## \[$VERSION\]/{flag=1; print} /^## \[/{if(!/^## \[$VERSION\]/) flag=0} flag" docs/CHANGELOG.md > release_notes.md
+
+            if [ -s release_notes.md ]; then
+              echo "✅ Changelog extracted from CHANGELOG.md"
+              cat release_notes.md
+            else
+              echo "⚠️  No entry found for $VERSION in CHANGELOG.md, using git log..."
+              git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > release_notes.md
+            fi
+          else
+            echo "📝 No CHANGELOG.md found, generating from git log..."
+            git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > release_notes.md
+          fi
+
+          # Create full release notes
+          cat > release_notes_full.md << EOF
+          # 🎉 Notimanager $VERSION
+
+          ## Installation Instructions
+
+          **First-time installation:**
+
+          ### Option 1: DMG Installer (Recommended)
+
+          1. Download `Notimanager-macOS.dmg`
+          2. Open the DMG file
+          3. Drag Notimanager to the Applications folder
+          4. Right-click the app and select "Open" (bypasses Gatekeeper)
+          5. Launch and grant Accessibility permissions in System Settings
+
+          ### Option 2: ZIP Archive
+
+          1. Download `Notimanager-macOS.zip`
+          3. Move to Applications:
+             ```bash
+             mv Notimanager.app /Applications/
+             ```
+          4. Launch and grant Accessibility permissions in System Settings
+
+          For detailed installation instructions, see [docs/INSTALLATION.md](https://github.com/abd3lraouf/Notimanager/blob/main/docs/INSTALLATION.md)
+
+          ---
+
+          ## What's Changed
+
+          EOF
+
+          cat release_notes.md >> release_notes_full.md
+
+          # Add upgrade instructions
+          cat >> release_notes_full.md << 'EOF'
+
+          ---
+
+          ## 🔄 Upgrading
+
+          If you have a previous version installed:
+          1. Quit Notimanager (menu bar icon → Quit)
+          2. Replace the old app in `/Applications/Notimanager.app`
+          3. Launch the new version
+          4. Your settings will be preserved
+
+          ## 🙏 Acknowledgments
+
+          Thank you for using Notimanager! If you find this app useful, please consider:
+          - ⭐ Starring the repository on GitHub
+          - 🐛 Reporting issues or suggesting features
+          - 💬 Sharing feedback
+
+          ---
+          **Full Changelog**: https://github.com/abd3lraouf/Notimanager/compare/$PREV_TAG...v$VERSION
+          EOF
+
+          # Add previous tag for comparison link
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            sed -i '' "s/\$PREV_TAG/$PREV_TAG/g" release_notes_full.md
+          else
+            sed -i '' 's/\$PREV_TAG/v0.0.0/g' release_notes_full.md
+          fi
+
+          sed -i '' "s/\$VERSION/$VERSION/g" release_notes_full.md
+
+          echo "📋 Release Notes:"
+          cat release_notes_full.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Notimanager ${{ steps.version.outputs.version }}
+          body_path: release_notes_full.md
+          files: |
+            build/Notimanager-macOS.zip
+            build/Notimanager-macOS.dmg
+          fail_on_unmatched_files: false
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notimanager-${{ steps.version.outputs.version }}
+          path: |
+            build/Notimanager-macOS.zip
+            build/Notimanager-macOS.dmg
+            build/release/Notimanager.app
+          retention-days: 30
+          if-no-files-found: ignore
