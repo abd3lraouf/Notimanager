@@ -6,12 +6,43 @@
 //  Manages the launch agent plist for "launch at login" functionality.
 //  Extracted from NotificationMover to separate concerns.
 //
+//  DEPRECATED: This class is deprecated in favor of the LaunchAtLogin package (Swift Package Manager).
+//  LaunchAtLogin provides a more modern, SwiftUI-based approach that handles "launch at login"
+//  functionality automatically and follows current macOS best practices.
+//  This file is kept for backwards compatibility with macOS versions prior to 13.0.
+//
+//  To migrate:
+//  1. Add LaunchAtLogin SPM package: https://github.com/sindresorhus/LaunchAtLogin-Modern
+//  2. Replace usage with: `LaunchAtLogin.isEnabled` and `LaunchAtLogin.Toggle`
+//  3. Remove this file once your minimum deployment target is macOS 13.0+
+//
 
 import Foundation
 
-/// Manages the launch agent plist for "launch at login" functionality
+/// Manages the launch agent plist for "launch at login" functionality.
+///
+/// **DEPRECATED**: Use LaunchAtLogin package instead for macOS 13.0+
+///
+/// This class serves as the single source of truth for launch agent paths and provides
+/// methods to enable, disable, and check the status of the launch at login functionality.
+///
+/// The default plist path follows macOS conventions: `~/Library/LaunchAgents/{bundleIdentifier}.plist`
 @available(macOS 10.15, *)
+@available(*, deprecated, message: "Use LaunchAtLogin SPM package instead for macOS 13.0+")
 class LaunchAgentManager {
+
+    // MARK: - Public Static Properties
+
+    /// The default path for the launch agent plist file.
+    ///
+    /// This path follows the standard macOS convention for launch agents:
+    /// `~/Library/LaunchAgents/dev.abd3lraouf.notimanager.plist`
+    ///
+    /// Use this property when you need to reference the launch agent path from other parts
+    /// of the application, rather than hardcoding the path.
+    public static let defaultPlistPath: String = {
+        NSHomeDirectory() + "/Library/LaunchAgents/dev.abd3lraouf.notimanager.plist"
+    }()
 
     // MARK: - Properties
 
@@ -21,8 +52,12 @@ class LaunchAgentManager {
 
     // MARK: - Initialization
 
+    /// Initializes a new LaunchAgentManager instance.
+    ///
+    /// - Parameter plistPath: Optional custom path for the launch agent plist.
+    ///                       If nil, uses the default path specified by `defaultPlistPath`.
     init(plistPath: String? = nil) {
-        self.plistPath = plistPath ?? (NSHomeDirectory() + "/Library/LaunchAgents/dev.abd3lraouf.notimanager.plist")
+        self.plistPath = plistPath ?? Self.defaultPlistPath
 
         guard let bundleID = Bundle.main.bundleIdentifier else {
             fatalError("Bundle identifier not found")

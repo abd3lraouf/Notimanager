@@ -34,7 +34,6 @@ class ConfigurationManager {
         static let isEnabled = "isEnabled"
         static let debugMode = "debugMode"
         static let isMenuBarIconHidden = "isMenuBarIconHidden"
-        static let launchAgentPlistPath = NSHomeDirectory() + "/Library/LaunchAgents/dev.abd3lraouf.notimanager.plist"
     }
 
     // MARK: - Properties
@@ -70,11 +69,6 @@ class ConfigurationManager {
             saveToStorage()
             notifyObservers(of: .menuBarIconChanged)
         }
-    }
-
-    /// Path to the launch agent plist file
-    var launchAgentPlistPath: String {
-        return Keys.launchAgentPlistPath
     }
 
     // MARK: - Change Observers

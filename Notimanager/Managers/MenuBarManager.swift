@@ -9,6 +9,7 @@
 
 import AppKit
 import Foundation
+import LaunchAtLogin
 
 /// Manages the menu bar icon and menu
 @available(macOS 10.15, *)
@@ -76,26 +77,11 @@ class MenuBarManager: NSObject {
             iconName = "MenuBarIcon-disabled"
         } else {
             // Use position-specific icon based on current position
-            iconName = iconNameForPosition(coordinator.currentPosition)
+            iconName = "MenuBarIcon-" + coordinator.currentPosition.iconName
         }
 
         button.image = NSImage(named: iconName)
         button.image?.isTemplate = true
-    }
-
-    /// Returns the appropriate icon name for a given position
-    private func iconNameForPosition(_ position: NotificationPosition) -> String {
-        // Only 4 corner positions exist
-        switch position {
-        case .topLeft:
-            return "MenuBarIcon-top-left"
-        case .topRight:
-            return "MenuBarIcon-top-right"
-        case .bottomLeft:
-            return "MenuBarIcon-bottom-left"
-        case .bottomRight:
-            return "MenuBarIcon-bottom-right"
-        }
     }
 
     // MARK: - Status Item Management
@@ -185,7 +171,7 @@ class MenuBarManager: NSObject {
             keyEquivalent: "l"
         )
         launchItem.target = self
-        launchItem.state = isLaunchAgentEnabled() ? .on : .off
+        launchItem.state = isLaunchAtLoginEnabled ? .on : .off
         menu.addItem(launchItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -270,6 +256,15 @@ class MenuBarManager: NSObject {
 
     // MARK: - Actions
 
+    /// Checks if launch at login is enabled using LaunchAtLogin library
+    private var isLaunchAtLoginEnabled: Bool {
+        if #available(macOS 13.0, *) {
+            return LaunchAtLogin.isEnabled
+        }
+        // No fallback for macOS < 13.0 - LaunchAtLogin package requires macOS 13+
+        return false
+    }
+
     @objc private func menuBarButtonClicked() {
         // Menu is shown automatically via statusItem.menu
     }
@@ -291,8 +286,11 @@ class MenuBarManager: NSObject {
     }
 
     @objc private func toggleLaunchAtLogin() {
-        coordinator?.toggleLaunchAtLogin()
-        rebuildMenu()
+        if #available(macOS 13.0, *) {
+            LaunchAtLogin.isEnabled.toggle()
+            rebuildMenu()
+        }
+        // Note: No fallback for macOS < 13.0 as LaunchAtLogin package requires macOS 13+
     }
 
     @objc private func sendTestNotification() {
@@ -301,13 +299,6 @@ class MenuBarManager: NSObject {
 
     @objc private func quit() {
         coordinator?.quit()
-    }
-
-    // MARK: - Helpers
-
-    private func isLaunchAgentEnabled() -> Bool {
-        guard let coordinator = coordinator else { return false }
-        return FileManager.default.fileExists(atPath: coordinator.launchAgentPlistPath)
     }
 }
 

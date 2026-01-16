@@ -141,9 +141,4 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var debugMode: Bool {
         return coordinator.debugMode
     }
-
-    /// Launch agent plist path - forwards to coordinator
-    var launchAgentPlistPath: String {
-        return coordinator.launchAgentPlistPath
-    }
 }
