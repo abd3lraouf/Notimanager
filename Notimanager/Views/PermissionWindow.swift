@@ -20,6 +20,7 @@ class PermissionWindow: NSWindow {
     private var statusIconView: NSImageView?
     private var statusTitleLabel: NSTextField?
     private var resetButton: NSButton?
+    private var resetSettingsButton: NSButton?
 
     // Polling timer for permission status updates
     private var pollingTimer: Timer?
@@ -363,7 +364,32 @@ class PermissionWindow: NSWindow {
         )
         restartBtn.toolTip = "Restarts the app to apply changes"
 
-        return yPos - buttonHeight - Spacing.pt32
+        // Reset Settings Accessibility button (secondary action below main buttons)
+        let resetSettingsYPos = yPos - buttonHeight - Spacing.pt12
+        let resetSettingsBtnWidth: CGFloat = 240
+        let resetSettingsBtn = NSButton(frame: NSRect(
+            x: (frame.width - resetSettingsBtnWidth) / 2,
+            y: resetSettingsYPos,
+            width: resetSettingsBtnWidth,
+            height: Layout.regularButtonHeight
+        ))
+        resetSettingsBtn.title = "Reset Settings Accessibility"
+        resetSettingsBtn.bezelStyle = .regularSquare
+        resetSettingsBtn.controlSize = .regular
+        resetSettingsBtn.target = self
+        resetSettingsBtn.action = #selector(resetSettingsAccessibility)
+        documentView.addSubview(resetSettingsBtn)
+
+        self.resetSettingsButton = resetSettingsBtn
+
+        // Configure accessibility
+        AccessibilityManager.shared.configureButton(
+            resetSettingsBtn,
+            label: "Reset Settings Accessibility"
+        )
+        resetSettingsBtn.toolTip = "Resets the accessibility settings for Notimanager in System Settings"
+
+        return resetSettingsYPos - Layout.regularButtonHeight - Spacing.pt32
     }
 
     // MARK: - Permission Polling
@@ -476,6 +502,71 @@ class PermissionWindow: NSWindow {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             NSApp.terminate(nil)
         }
+    }
+
+    @objc private func resetSettingsAccessibility() {
+        // Show confirmation dialog
+        let alert = NSAlert()
+        alert.messageText = NSLocalizedString("Reset Settings Accessibility?", comment: "Alert title")
+        alert.informativeText = NSLocalizedString(
+            "This will reset Notimanager's accessibility setting in System Settings.\n\nYou will need to manually grant accessibility permission again after this reset.",
+            comment: "Alert message"
+        )
+        alert.addButton(withTitle: NSLocalizedString("Reset", comment: "Button title"))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Button title"))
+        alert.alertStyle = .warning
+        alert.showsSuppressionButton = false
+
+        let response = alert.runModal()
+
+        if response == .alertFirstButtonReturn {
+            // User confirmed - execute reset
+            do {
+                let bundleID = Bundle.main.bundleIdentifier ?? "dev.abd3lraouf.notimanager"
+
+                let task = Process()
+                task.launchPath = "/usr/bin/tccutil"
+                task.arguments = ["reset", "Accessibility", bundleID]
+
+                try task.run()
+                task.waitUntilExit()
+
+                if task.terminationStatus == 0 {
+                    // Show success alert
+                    let successAlert = NSAlert()
+                    successAlert.messageText = NSLocalizedString("Reset Complete", comment: "Success title")
+                    successAlert.informativeText = NSLocalizedString(
+                        "Accessibility setting has been reset. Please grant permission again in System Settings > Privacy & Security > Accessibility.",
+                        comment: "Success message"
+                    )
+                    successAlert.addButton(withTitle: NSLocalizedString("OK", comment: "Button title"))
+                    successAlert.alertStyle = .informational
+                    successAlert.runModal()
+
+                    // Update permission status
+                    checkPermissionStatus()
+                } else {
+                    throw PermissionError.resetFailed
+                }
+            } catch {
+                // Show error alert
+                let errorAlert = NSAlert()
+                errorAlert.messageText = NSLocalizedString("Reset Failed", comment: "Error title")
+                errorAlert.informativeText = NSLocalizedString(
+                    "Failed to reset accessibility setting. Please try again or reset manually in System Settings.",
+                    comment: "Error message"
+                )
+                errorAlert.addButton(withTitle: NSLocalizedString("OK", comment: "Button title"))
+                errorAlert.alertStyle = .critical
+                errorAlert.runModal()
+            }
+        }
+    }
+
+    // MARK: - Errors
+
+    enum PermissionError: Error {
+        case resetFailed
     }
 
     // MARK: - Public Methods

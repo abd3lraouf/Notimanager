@@ -27,7 +27,6 @@ final class NotificationMoverCoordinator: NSObject {
     private let widgetMonitor: WidgetMonitorService
     private let logger: LoggingService
     private let menuBarManager: MenuBarManager
-    private let launchAgentManager: LaunchAgentManager
 
     // MARK: - UI Components
 
@@ -69,8 +68,7 @@ final class NotificationMoverCoordinator: NSObject {
         windowMonitor: WindowMonitorService = .shared,
         widgetMonitor: WidgetMonitorService = .shared,
         logger: LoggingService = .shared,
-        menuBarManager: MenuBarManager? = nil,
-        launchAgentManager: LaunchAgentManager? = nil
+        menuBarManager: MenuBarManager? = nil
     ) {
         self.configurationManager = configurationManager
         self.accessibilityManager = accessibilityManager
@@ -80,12 +78,9 @@ final class NotificationMoverCoordinator: NSObject {
         self.widgetMonitor = widgetMonitor
         self.logger = logger
 
-        // Use provided managers or create new instances
+        // Create menu bar manager
         let menuBarMgr = menuBarManager ?? MenuBarManager()
         self.menuBarManager = menuBarMgr
-
-        let launchAgentMgr = launchAgentManager ?? LaunchAgentManager()
-        self.launchAgentManager = launchAgentMgr
 
         super.init()
 
@@ -276,21 +271,6 @@ final class NotificationMoverCoordinator: NSObject {
         }
     }
 
-    // MARK: - Launch Agent Management
-
-    private func isLaunchAgentEnabled() -> Bool {
-        return launchAgentManager.isEnabled
-    }
-
-    private func setLaunchAgentEnabled(_ enabled: Bool) {
-        do {
-            try launchAgentManager.setEnabled(enabled)
-            logger.info("Launch at login: \(enabled ? "enabled" : "disabled")")
-        } catch {
-            logger.error("Failed to set launch agent: \(error)")
-        }
-    }
-
     // MARK: - Helpers
 
     private func sendTestNotificationInternal() {
@@ -421,11 +401,6 @@ extension NotificationMoverCoordinator: CoordinatorAction {
         configurationManager.isEnabled.toggle()
     }
 
-    func toggleLaunchAtLogin() {
-        let newState = !isLaunchAgentEnabled()
-        setLaunchAgentEnabled(newState)
-    }
-
     func sendTestNotification() {
         sendTestNotificationInternal()
     }
@@ -453,10 +428,6 @@ extension NotificationMoverCoordinator: CoordinatorAction {
     var isMenuBarIconHidden: Bool {
         get { return configurationManager.isMenuBarIconHidden }
         set { configurationManager.isMenuBarIconHidden = newValue }
-    }
-
-    var launchAgentPlistPath: String {
-        return configurationManager.launchAgentPlistPath
     }
 
     // MARK: - Support Links

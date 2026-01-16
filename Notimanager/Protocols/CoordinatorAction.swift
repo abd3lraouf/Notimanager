@@ -45,9 +45,6 @@ protocol CoordinatorAction: AnyObject {
     /// Toggles notification positioning on/off
     func toggleEnabled()
 
-    /// Toggles launch at login
-    func toggleLaunchAtLogin()
-
     /// Sends a test notification
     func sendTestNotification()
 
@@ -67,45 +64,8 @@ protocol CoordinatorAction: AnyObject {
 
     /// Whether the menu bar icon is hidden
     var isMenuBarIconHidden: Bool { get set }
-
-    /// Path to the launch agent plist file
-    var launchAgentPlistPath: String { get }
 }
 
-// MARK: - Checkbox Actions (for Settings Window)
-
-extension CoordinatorAction {
-
-    /// Handles enabled checkbox toggle
-    /// - Parameter checkbox: The checkbox that was toggled
-    func toggleEnabledFromSettings(_ checkbox: NSButton) {
-        toggleEnabled()
-        // Update checkbox state to match
-        checkbox.state = isEnabled ? .on : .off
-    }
-
-    /// Handles launch at login checkbox toggle
-    /// - Parameter checkbox: The checkbox that was toggled
-    func toggleLaunchFromSettings(_ checkbox: NSButton) {
-        toggleLaunchAtLogin()
-        // Update checkbox state to match
-        // Note: This needs access to launch agent state
-    }
-
-    /// Handles debug mode checkbox toggle
-    /// - Parameter checkbox: The checkbox that was toggled
-    func toggleDebugFromSettings(_ checkbox: NSButton) {
-        // Debug mode is set via ConfigurationManager
-        // This is a no-op here, handled in SettingsViewModel
-    }
-
-    /// Handles hide icon checkbox toggle
-    /// - Parameter checkbox: The checkbox that was toggled
-    func toggleHideIconFromSettings(_ checkbox: NSButton) {
-        // Menu bar icon is set via ConfigurationManager
-        // This is a no-op here, handled in SettingsViewModel
-    }
-}
 
 // MARK: - Support Links
 
