@@ -10,6 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
+## [1.4.0] - TBD
+
+### ✨ New Features
+- **Automatic Updates**: Integrated Sparkle 2.x framework for automatic update checking and installation
+- **Update Settings**: Added two new settings in General pane:
+  - Automatically check for updates
+  - Automatically download updates
+- **Check for Updates**: Menu bar item to manually check for updates
+- **UpdateManager**: New service for managing Sparkle updater functionality
+
+### 🔧 Improvements
+- **Signed Updates**: All releases will be EdDSA-signed for security
+- **GitHub Actions**: Enhanced release workflow with appcast generation
+- **GitHub Pages**: Automatic deployment of appcast.xml for updates
+
+### 🛠️ Developer Experience
+- **Setup Script**: Automated `scripts/setup-sparkle.sh` for complete Sparkle setup
+- **Documentation**: Comprehensive `docs/SPARKLE_SETUP.md` with step-by-step instructions
+
+### 🔒 Security
+- **EdDSA Signatures**: Update archives are signed with Ed25519 keys
+- **Signature Verification**: All updates are verified before installation
+
 ## [1.3.0] - 2026-01-17
 
 ### ✨ New Features

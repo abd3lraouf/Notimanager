@@ -29,6 +29,17 @@ jobs:
           echo "✅ create-dmg installed"
           create-dmg --version || true
 
+      - name: Install Sparkle tools
+        run: |
+          echo "📦 Installing Sparkle for appcast generation..."
+          # Download Sparkle tools for generate_appcast
+          wget https://github.com/sparkle-project/Sparkle/releases/download/2.7.0/Sparkle-2.7.0.tar.xz -O sparkle.tar.xz
+          tar xf sparkle.tar.xz
+          mkdir -p bin
+          cp Sparkle/bin/generate_appcast bin/
+          chmod +x bin/generate_appcast
+          echo "✅ Sparkle tools installed"
+
       - name: Extract version from tag
         id: version
         run: |
@@ -135,6 +146,51 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Sparkle signing key
+        run: |
+          echo "🔑 Setting up Sparkle signing key..."
+          # Export the private key from secrets (base64 encoded)
+          if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
+            echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | base64 -d > sparkle_private_key.pem
+            # Import to keychain
+            security import sparkle_private_key.pem -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+            echo "✅ Sparkle private key imported"
+          else
+            echo "⚠️  No SPARKLE_PRIVATE_KEY found - appcast will not be signed"
+          fi
+
+      - name: Generate appcast
+        run: |
+          echo "📡 Generating Sparkle appcast..."
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Create updates folder
+          mkdir -p updates
+
+          # Copy DMG to updates folder
+          cp build/Notimanager-macOS.dmg "updates/Notimanager-${VERSION}.dmg"
+
+          # Generate appcast with signing if key is available
+          if [ -f "sparkle_private_key.pem" ]; then
+            ./bin/generate_appcast updates || echo "⚠️  Appcast generation completed with warnings"
+          else
+            echo "⚠️  Generating appcast without signature (development only)"
+            ./bin/generate_appcast updates || true
+          fi
+
+          # Show the generated appcast
+          if [ -f "updates/appcast.xml" ]; then
+            echo "✅ Appcast generated:"
+            cat updates/appcast.xml
+          fi
+
+      - name: Upload appcast as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast-xml
+          path: updates/appcast.xml
+          retention-days: 90
+
       - name: Generate changelog
         id: changelog
         run: |
@@ -239,6 +295,7 @@ jobs:
           files: |
             build/Notimanager-macOS.zip
             build/Notimanager-macOS.dmg
+            updates/appcast.xml
           fail_on_unmatched_files: false
           draft: false
           prerelease: false

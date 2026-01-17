@@ -1,0 +1,9 @@
+# Sparkle tools - downloaded by setup script, do not commit
+Sparkle/
+.sparkle-version
+*.tar.xz
+
+# Private keys - NEVER commit
+private-key*.pem
+private-key*.txt
+*-base64.txt

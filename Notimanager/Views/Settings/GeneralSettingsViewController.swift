@@ -11,6 +11,7 @@ import Settings
 import ServiceManagement
 import SwiftUI
 import LaunchAtLogin
+import Sparkle
 
 final class GeneralSettingsViewController: NSViewController, SettingsPane {
 
@@ -40,6 +41,11 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
     // Quit Section
     private var quitSectionView: NSView!
     private var quitButton: NSButton!
+
+    // Updates Section
+    private var updatesSectionView: NSView!
+    private var automaticallyCheckForUpdatesCheckboxRow: LiquidGlassCheckboxRow!
+    private var automaticallyDownloadUpdatesCheckboxRow: LiquidGlassCheckboxRow!
 
     // MARK: - Properties
 
@@ -87,6 +93,10 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         // === System Section ===
         systemSectionView = createSystemSection()
         contentView.addSubview(systemSectionView)
+
+        // === Updates Section ===
+        updatesSectionView = createUpdatesSection()
+        contentView.addSubview(updatesSectionView)
 
         // === Quit Section ===
         quitSectionView = createQuitSection()
@@ -190,6 +200,60 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         return containerView
     }
 
+    private func createUpdatesSection() -> NSView {
+        let containerView = NSView()
+        containerView.translatesAutoresizingMaskIntoConstraints = false
+
+        let header = SettingsSectionHeader(title: NSLocalizedString("Updates", comment: "Section header"))
+        containerView.addSubview(header)
+
+        // Automatically check for updates
+        automaticallyCheckForUpdatesCheckboxRow = LiquidGlassCheckboxRow(
+            title: NSLocalizedString("Automatically check for updates", comment: "Checkbox label"),
+            description: NSLocalizedString("Notimanager will check for updates automatically", comment: "Description text"),
+            initialState: .off,
+            action: #selector(automaticallyCheckForUpdatesClicked(_:)),
+            target: self
+        )
+        containerView.addSubview(automaticallyCheckForUpdatesCheckboxRow)
+
+        // Add separator
+        let separator = LiquidGlassSeparator()
+        containerView.addSubview(separator)
+
+        // Automatically download updates
+        automaticallyDownloadUpdatesCheckboxRow = LiquidGlassCheckboxRow(
+            title: NSLocalizedString("Automatically download updates", comment: "Checkbox label"),
+            description: NSLocalizedString("Updates will be downloaded automatically when available", comment: "Description text"),
+            initialState: .off,
+            action: #selector(automaticallyDownloadUpdatesClicked(_:)),
+            target: self
+        )
+        containerView.addSubview(automaticallyDownloadUpdatesCheckboxRow)
+
+        // Setup constraints
+        NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: containerView.topAnchor),
+            header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+
+            automaticallyCheckForUpdatesCheckboxRow.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt8),
+            automaticallyCheckForUpdatesCheckboxRow.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            automaticallyCheckForUpdatesCheckboxRow.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+
+            separator.topAnchor.constraint(equalTo: automaticallyCheckForUpdatesCheckboxRow.bottomAnchor, constant: Spacing.pt12),
+            separator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            separator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+
+            automaticallyDownloadUpdatesCheckboxRow.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: Spacing.pt12),
+            automaticallyDownloadUpdatesCheckboxRow.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            automaticallyDownloadUpdatesCheckboxRow.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+            automaticallyDownloadUpdatesCheckboxRow.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -Spacing.pt16)
+        ])
+
+        return containerView
+    }
+
     private func createQuitSection() -> NSView {
         let containerView = NSView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
@@ -268,9 +332,16 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
             systemSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
         ]
 
+        // Updates Section
+        constraints += [
+            updatesSectionView.topAnchor.constraint(equalTo: systemSectionView.bottomAnchor, constant: Spacing.pt20),
+            updatesSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            updatesSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+        ]
+
         // Quit Section
         constraints += [
-            quitSectionView.topAnchor.constraint(equalTo: systemSectionView.bottomAnchor, constant: Spacing.pt20),
+            quitSectionView.topAnchor.constraint(equalTo: updatesSectionView.bottomAnchor, constant: Spacing.pt20),
             quitSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             quitSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             quitSectionView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -Spacing.pt24)
@@ -281,7 +352,7 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        preferredContentSize = NSSize(width: Layout.settingsWindowWidth, height: 300)
+        preferredContentSize = NSSize(width: Layout.settingsWindowWidth, height: 450)
         populateSettings()
     }
 
@@ -319,6 +390,11 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         // Hide menu bar icon
         let isIconHidden = configurationManager.isMenuBarIconHidden
         hideMenuBarIconCheckboxRow.checkboxButton.state = isIconHidden ? .on : .off
+
+        // Update settings
+        let updateManager = UpdateManager.shared
+        automaticallyCheckForUpdatesCheckboxRow.checkboxButton.state = updateManager.automaticallyChecksForUpdates ? .on : .off
+        automaticallyDownloadUpdatesCheckboxRow.checkboxButton.state = updateManager.automaticallyDownloadsUpdates ? .on : .off
     }
 
     // MARK: - Actions
@@ -407,5 +483,17 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
             // Terminate the application
             NSApplication.shared.terminate(nil)
         }
+    }
+
+    @objc func automaticallyCheckForUpdatesClicked(_ sender: NSButton) {
+        let isEnabled = sender.state == .on
+        UpdateManager.shared.automaticallyChecksForUpdates = isEnabled
+        logger.log("Automatic update checks \(isEnabled ? "enabled" : "disabled")")
+    }
+
+    @objc func automaticallyDownloadUpdatesClicked(_ sender: NSButton) {
+        let isEnabled = sender.state == .on
+        UpdateManager.shared.automaticallyDownloadsUpdates = isEnabled
+        logger.log("Automatic update downloads \(isEnabled ? "enabled" : "disabled")")
     }
 }

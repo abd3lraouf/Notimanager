@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		78BB662B2F196AC50080C79C /* Settings in Frameworks */ = {isa = PBXBuildFile; productRef = 78BB65722F196A010080C79C /* Settings */; };
 		78LAUNCH01 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 78LAUNCH02 /* LaunchAtLogin */; };
+		78SPARKLE01 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 78SPARKLE02 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			files = (
 				78BB662B2F196AC50080C79C /* Settings in Frameworks */,
 				78LAUNCH01 /* LaunchAtLogin in Frameworks */,
+				78SPARKLE01 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -120,6 +122,7 @@
 			packageProductDependencies = (
 				78BB65722F196A010080C79C /* Settings */,
 				78LAUNCH02 /* LaunchAtLogin */,
+				78SPARKLE02 /* Sparkle */,
 			);
 			productName = Notimanager;
 			productReference = 7891B99C2EC9D3BF00454386 /* Notimanager.app */;
@@ -174,6 +177,7 @@
 			packageReferences = (
 				78BB65712F196A010080C79C /* XCRemoteSwiftPackageReference "Settings" */,
 				78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
+				78SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7891B99D2EC9D3BF00454386 /* Products */;
@@ -507,6 +511,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		78SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -519,6 +531,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
 			productName = LaunchAtLogin;
+		};
+		78SPARKLE02 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 78SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

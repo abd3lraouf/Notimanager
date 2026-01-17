@@ -60,3 +60,8 @@ build/*.p12
 build/certificate-base64.txt
 
 *.log
+
+# Sparkle tools and secrets
+tools/private-key-base64.txt
+tools/*.pem
+~/.notimanager-secrets/

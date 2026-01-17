@@ -10,6 +10,7 @@
 import AppKit
 import Foundation
 import LaunchAtLogin
+import Sparkle
 
 /// Manages the menu bar icon and menu
 @available(macOS 10.15, *)
@@ -152,6 +153,15 @@ class MenuBarManager: NSObject {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        // Check for Updates
+        let checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = self
+        menu.addItem(checkForUpdatesItem)
+
         menu.addItem(NSMenuItem.separator())
 
         // Enable Toggle
@@ -284,6 +294,10 @@ class MenuBarManager: NSObject {
 
     @objc private func quit() {
         coordinator?.quit()
+    }
+
+    @objc private func checkForUpdates() {
+        UpdateManager.shared.checkForUpdates()
     }
 }
 

@@ -2,7 +2,1199 @@
 name: Elite Apple Platform UI/UX Architect & Systems Designer
 description: The year is 2026. Spatial computing, Apple Intelligence, and Fluid Interfaces are the baseline standard
 ---
-# Apple UX Audit Protocol v2026 (Elite Edition)
+
+## ⚙️ Settings Screen Specification (Priority Override)
+
+**When auditing Settings/Preferences screens, these rules take PRECEDENCE over general guidelines.**
+
+### Settings Screen Detection
+
+**Automatic triggers:**
+- Window/Screen title contains: "Settings", "Preferences", "Configuration"
+- File path/name: `SettingsView.swift`, `PreferencesWindow.swift`, `ConfigPanel.swift`
+- Contains 3+ form controls (Toggle, Picker, Stepper, TextField for config)
+- Uses `Form` container with grouped style
+- macOS: Window size 580-650pt wide (standard settings window)
+
+**Ask user to confirm if unclear:**
+> "I've detected this might be a Settings/Preferences screen. Should I apply Settings-specific rules? (Y/N)"
+
+---
+
+### 🎨 Blip Settings Design System (Reference Implementation)
+
+**IMPORTANT:** The Blip Settings screenshots show a modern, card-based approach that DEVIATES from standard Apple HIG while maintaining excellent UX. When replicating this style, we prioritize:
+
+1. **Visual Clarity** over strict HIG compliance
+2. **Colorful Iconography** for quick visual scanning
+3. **Spacious Layout** with generous padding
+4. **Flat White Cards** (no glass materials in settings)
+5. **Subtle Shadows** for depth without distraction
+
+---
+
+### Blip Settings Visual Specification
+
+#### **Window Structure**
+```swift
+struct BlipSettingsWindow: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            // Custom toolbar with tabs
+            SettingsToolbar(selectedTab: $selectedTab)
+                .frame(height: 80)
+                .background(.white)
+            
+            Divider()
+            
+            // Content area
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Settings cards
+                }
+                .padding(20)
+            }
+            .background(Color(hex: "F5F5F7")) // Light gray background
+        }
+        .frame(width: 540, height: 580)
+        .background(.white)
+    }
+}
+```
+
+**Key Measurements:**
+- Window width: **540pt** (narrower than standard 580pt)
+- Window height: **580pt** (flexible based on content)
+- Toolbar height: **80pt** (includes tabs)
+- Content padding: **20pt** all sides
+- Card spacing: **16pt** vertical
+- Background: **#F5F5F7** (light gray, not system background)
+
+---
+
+#### **Settings Toolbar (Custom Tab Bar)**
+
+```swift
+struct SettingsToolbar: View {
+    @Binding var selectedTab: SettingsTab
+    
+    enum SettingsTab: String, CaseIterable {
+        case general = "General"
+        case profile = "Profile"
+        case devices = "Devices"
+        case help = "Help"
+        
+        var icon: String {
+            switch self {
+            case .general: return "gearshape"
+            case .profile: return "person.circle"
+            case .devices: return "laptopcomputer"
+            case .help: return "questionmark.circle"
+            }
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(SettingsTab.allCases, id: \.self) { tab in
+                Button(action: {
+                    selectedTab = tab
+                }) {
+                    VStack(spacing: 6) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 24))
+                            .symbolRenderingMode(.monochrome)
+                        
+                        Text(tab.rawValue)
+                            .font(.system(size: 11))
+                    }
+                    .foregroundStyle(selectedTab == tab ? .blue : .secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+}
+```
+
+**Toolbar Specifications:**
+- Icon size: **24pt** (larger than standard HIG)
+- Icon spacing: **6pt** to label
+- Label font: **11pt system** (smaller than body)
+- Active color: **Blue** (system accent)
+- Inactive color: **Secondary gray**
+- Tabs are evenly distributed (`.frame(maxWidth: .infinity)`)
+
+---
+
+#### **Settings Card Component**
+
+```swift
+struct SettingsCard: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            // Card content with rows
+        }
+        .background(.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+    }
+}
+```
+
+**Card Specifications:**
+- Background: **Pure white** (#FFFFFF)
+- Corner radius: **12pt** (continuous)
+- Shadow 1: **opacity 0.06, radius 8pt, y: 2pt**
+- Shadow 2: **opacity 0.04, radius 4pt, y: 1pt** (subtle ambient)
+- NO border/stroke (clean edges)
+- NO background blur (solid white only)
+
+---
+
+#### **Settings Row Types**
+
+##### **Type 1: Toggle Row with Colored Icon**
+```swift
+struct ToggleSettingRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Colored icon background
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor)
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundStyle(.primary)
+            
+            Spacer()
+            
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.white)
+    }
+}
+```
+
+**Example Usage:**
+```swift
+ToggleSettingRow(
+    icon: "power",
+    iconColor: .green, // #32D74B
+    title: "Launch at Login",
+    isOn: $launchAtLogin
+)
+```
+
+**Toggle Row Specifications:**
+- Icon container: **32×32pt rounded square**
+- Icon corner radius: **6pt**
+- Icon size: **18pt medium weight**
+- Icon background colors: **Vibrant brand colors** (not muted grays)
+  - Green: #32D74B (Launch at Login)
+  - Red/Pink: #FF375F (Sound Effects)
+  - Purple: #BF5AF2 (Auto-Accept)
+  - Blue: #007AFF (Files)
+- Row padding: **16pt horizontal, 12pt vertical**
+- Title font: **14pt system regular**
+- Toggle: **Standard iOS switch** (51×31pt)
+
+##### **Type 2: Picker Row with Colored Icon**
+```swift
+struct PickerSettingRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    @Binding var selection: String
+    let options: [String]
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Colored icon
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor)
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundStyle(.primary)
+            
+            Spacer()
+            
+            Picker("", selection: $selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 180)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.white)
+    }
+}
+```
+
+**Picker Row Specifications:**
+- Icon: Same as toggle row
+- Picker width: **180pt** (right-aligned)
+- Picker style: **Menu** (dropdown)
+- Picker button background: **#F5F5F5** (light gray)
+- Picker button corner radius: **6pt**
+
+##### **Type 3: Action Row with Colored Icon**
+```swift
+struct ActionSettingRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String?
+    let buttonTitle: String
+    let buttonIcon: String?
+    let action: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Colored icon
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor)
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.primary)
+                
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Text(buttonTitle)
+                        .font(.system(size: 13, weight: .medium))
+                    
+                    if let buttonIcon {
+                        Image(systemName: buttonIcon)
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(hex: "F5F5F5"))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.white)
+    }
+}
+```
+
+**Action Row Specifications:**
+- Two-line layout: Title + subtitle
+- Subtitle font: **11pt secondary gray**
+- Button padding: **12pt horizontal, 6pt vertical**
+- Button background: **#F5F5F5**
+- Button corner radius: **6pt**
+- Button font: **13pt medium**
+
+##### **Type 4: Help Row (Special Case)**
+```swift
+struct HelpSettingRow: View {
+    let service: String // "Email", "Discord", "X.com"
+    let handle: String  // "hello@blip.net", "@blipnet"
+    let buttonTitle: String // "Compose", "Open"
+    let buttonIcon: String? // "doc.on.doc"
+    let action: () -> Void
+    
+    var serviceIcon: String {
+        switch service {
+        case "Email": return "envelope.circle.fill"
+        case "Discord": return "bubble.left.and.bubble.right.fill"
+        case "X.com": return "xmark.circle.fill"
+        default: return "questionmark.circle.fill"
+        }
+    }
+    
+    var iconImage: Image? {
+        // For known services, use custom brand icons
+        switch service {
+        case "Email": return Image("google-icon") // Custom asset
+        case "Discord": return Image("discord-icon")
+        case "X.com": return Image("x-icon")
+        default: return nil
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Service brand icon (if custom) or SF Symbol
+            if let customIcon = iconImage {
+                customIcon
+                    .resizable()
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            } else {
+                Image(systemName: serviceIcon)
+                    .font(.system(size: 32))
+                    .foregroundStyle(.blue)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(service)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                
+                Text(handle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Text(buttonTitle)
+                        .font(.system(size: 13, weight: .medium))
+                    
+                    if let icon = buttonIcon {
+                        Image(systemName: icon)
+                            .font(.system(size: 12))
+                    }
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(hex: "F5F5F5"))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.white)
+    }
+}
+```
+
+##### **Type 5: Info Row (Version/Status)**
+```swift
+struct InfoSettingRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    let buttonTitle: String
+    let action: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor.opacity(0.2))
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: action) {
+                Text(buttonTitle)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color(hex: "F5F5F5"))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+struct HelpServiceRow: View {
+    let service: String
+    let handle: String
+    let buttonTitle: String
+    let buttonIcon: String?
+    let iconImage: String
+    let action: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Custom brand icon (use Image asset or SF Symbol fallback)
+            if let uiImage = NSImage(named: iconImage) {
+                Image(nsImage: uiImage)
+                    .resizable()
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            } else {
+                // Fallback to colored icon
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.blue)
+                    .frame(width: 32, height: 32)
+                    .overlay {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(service)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                
+                Text(handle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Text(buttonTitle)
+                        .font(.system(size: 13, weight: .medium))
+                    
+                    if let icon = buttonIcon {
+                        Image(systemName: icon)
+                            .font(.system(size: 12))
+                    }
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(hex: "F5F5F5"))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Color Extension
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+```
+
+---
+
+### Blip Settings Design Audit Checklist
+
+When auditing settings screens following the Blip design language:
+
+**✅ Required Elements:**
+- [ ] Window width: **540pt** (not standard 580pt)
+- [ ] Window height: **580pt minimum** (flexible)
+- [ ] Custom tab toolbar: **80pt height**
+- [ ] Tab icons: **24pt size**
+- [ ] Background: **#F5F5F7** (light gray, not system)
+- [ ] Cards: **Pure white (#FFFFFF)** with 12pt radius
+- [ ] Card shadows: **Dual layer** (0.06 + 0.04 opacity)
+- [ ] Card spacing: **16pt vertical**
+- [ ] Content padding: **20pt** all sides
+
+**✅ Icon System:**
+- [ ] Icon containers: **32×32pt rounded squares**
+- [ ] Icon corner radius: **6pt continuous**
+- [ ] Icon size: **18pt medium weight**
+- [ ] Icon colors: **Vibrant brand colors** (not muted)
+  - Green: #32D74B
+  - Red/Pink: #FF375F  
+  - Purple: #BF5AF2
+  - Blue: #007AFF
+  - Gray (inactive): #8E8E93
+
+**✅ Typography:**
+- [ ] Row titles: **14pt system regular**
+- [ ] Subtitles: **11pt system regular secondary**
+- [ ] Buttons: **13pt system medium**
+- [ ] Tab labels: **11pt system regular**
+
+**✅ Row Specifications:**
+- [ ] Row padding: **16pt horizontal, 12pt vertical**
+- [ ] Icon-to-text spacing: **12pt**
+- [ ] Dividers: **#E5E5E5** with 60pt left padding
+- [ ] Controls right-aligned with proper spacing
+
+**✅ Buttons:**
+- [ ] Background: **#F5F5F5** (light gray)
+- [ ] Corner radius: **6pt continuous**
+- [ ] Padding: **12pt horizontal, 6pt vertical**
+- [ ] Font: **13pt medium**
+
+**❌ Prohibited:**
+- [ ] ❌ Glass materials / blur effects
+- [ ] ❌ Standard Form/List styling
+- [ ] ❌ System default card styles
+- [ ] ❌ Large section headers
+- [ ] ❌ Footer text under sections
+- [ ] ❌ Standard HIG spacing (20pt)
+
+---
+
+### Key Deviations from Apple HIG
+
+**Blip Settings intentionally deviates from HIG in these ways:**
+
+1. **Custom Tab Bar** - Uses custom toolbar instead of standard TabView
+2. **Card-Based Layout** - Individual white cards instead of grouped lists
+3. **Vibrant Icons** - Colored icon backgrounds instead of monochrome
+4. **Smaller Window** - 540pt vs standard 580-650pt
+5. **No Section Headers** - Visual grouping through cards, not text headers
+6. **Custom Controls** - Styled pickers/buttons vs standard controls
+7. **Light Gray Background** - #F5F5F7 instead of system background
+
+**Why these work:**
+- ✅ More scannable (colored icons aid recognition)
+- ✅ Cleaner appearance (cards vs lists)
+- ✅ Consistent spacing (16pt rhythm)
+- ✅ Modern aesthetic (2025+ design trends)
+- ✅ Better organization (visual grouping)
+
+**When to use Blip style:**
+- Consumer-facing apps
+- Modern utilities
+- Apps with <20 settings
+- Apps targeting Gen Z/Millennials
+- File transfer / communication apps
+
+**When to use Standard HIG:**
+- Enterprise apps
+- System utilities
+- Developer tools
+- Apps with 50+ settings
+- Accessibility-critical applications
+
+---
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: action) {
+                Text(buttonTitle)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color(hex: "F5F5F5"))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.white)
+    }
+}
+```
+
+---
+
+#### **Row Separators**
+
+```swift
+// Subtle divider between rows in same card
+Divider()
+    .background(Color(hex: "E5E5E5"))
+    .padding(.leading, 60) // Aligns with text, not icon
+```
+
+**Separator Specifications:**
+- Color: **#E5E5E5** (very light gray)
+- Padding left: **60pt** (icon 32pt + spacing 12pt + 16pt row padding)
+- Height: **1pt** (hairline)
+
+---
+
+#### **Row Grouping & Spacing**
+
+```swift
+// Example: General Settings Tab
+VStack(spacing: 16) {
+    // Card 1: Basic toggles
+    VStack(spacing: 0) {
+        ToggleSettingRow(
+            icon: "power",
+            iconColor: .green,
+            title: "Launch at Login",
+            isOn: $launchAtLogin
+        )
+        
+        Divider().padding(.leading, 60)
+        
+        ToggleSettingRow(
+            icon: "speaker.wave.3",
+            iconColor: Color(hex: "FF375F"),
+            title: "Play Sound Effects",
+            isOn: $soundEffects
+        )
+    }
+    .background(.white)
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+    
+    // Card 2: Pickers
+    VStack(spacing: 0) {
+        PickerSettingRow(
+            icon: "checkmark.circle",
+            iconColor: Color(hex: "BF5AF2"),
+            title: "Auto-Accept",
+            selection: $autoAccept,
+            options: ["From My Devices", "From Everyone", "Never"]
+        )
+        
+        Divider().padding(.leading, 60)
+        
+        PickerSettingRow(
+            icon: "folder",
+            iconColor: .blue,
+            title: "Save Received Files to",
+            selection: $saveLocation,
+            options: ["Desktop", "Downloads", "Documents"]
+        )
+    }
+    .background(.white)
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+}
+.padding(20)
+```
+
+**Grouping Rules:**
+- Related settings in same card
+- Maximum 4-5 rows per card (avoid scrolling within card)
+- Separate cards by logical function groups
+- Card spacing: **16pt vertical**
+
+---
+
+### Complete Blip Settings Implementation
+
+```swift
+import SwiftUI
+
+// MARK: - Main Settings Window
+
+struct BlipSettingsWindow: View {
+    @State private var selectedTab: SettingsTab = .general
+    
+    enum SettingsTab: String, CaseIterable {
+        case general = "General"
+        case profile = "Profile"
+        case devices = "Devices"
+        case help = "Help"
+        
+        var icon: String {
+            switch self {
+            case .general: return "gearshape"
+            case .profile: return "person.circle"
+            case .devices: return "laptopcomputer"
+            case .help: return "questionmark.circle"
+            }
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Title Bar
+            Text("Blip Settings")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(.white)
+            
+            // Custom Toolbar
+            HStack(spacing: 0) {
+                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedTab = tab
+                        }
+                    }) {
+                        VStack(spacing: 6) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 24))
+                                .symbolRenderingMode(.monochrome)
+                            
+                            Text(tab.rawValue)
+                                .font(.system(size: 11))
+                        }
+                        .foregroundStyle(selectedTab == tab ? .blue : .secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
+            .frame(height: 80)
+            .background(.white)
+            
+            Divider()
+            
+            // Content
+            ScrollView {
+                Group {
+                    switch selectedTab {
+                    case .general:
+                        GeneralSettingsView()
+                    case .profile:
+                        ProfileSettingsView()
+                    case .devices:
+                        DevicesSettingsView()
+                    case .help:
+                        HelpSettingsView()
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color(hex: "F5F5F7"))
+        }
+        .frame(width: 540, height: 580)
+        .background(.white)
+    }
+}
+
+// MARK: - General Settings Tab
+
+struct GeneralSettingsView: View {
+    @AppStorage("launchAtLogin") private var launchAtLogin = false
+    @AppStorage("soundEffects") private var soundEffects = true
+    @AppStorage("autoAccept") private var autoAccept = "From My Devices"
+    @AppStorage("saveLocation") private var saveLocation = "Desktop"
+    @AppStorage("speedDiagnostics") private var speedDiagnostics = false
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            // Card 1: Basic Toggles
+            SettingsCard {
+                ToggleSettingRow(
+                    icon: "power",
+                    iconColor: Color(hex: "32D74B"),
+                    title: "Launch at Login",
+                    isOn: $launchAtLogin
+                )
+                
+                Divider().padding(.leading, 60)
+                
+                ToggleSettingRow(
+                    icon: "speaker.wave.3",
+                    iconColor: Color(hex: "FF375F"),
+                    title: "Play Sound Effects",
+                    isOn: $soundEffects
+                )
+            }
+            
+            // Card 2: Pickers
+            SettingsCard {
+                PickerSettingRow(
+                    icon: "checkmark.circle",
+                    iconColor: Color(hex: "BF5AF2"),
+                    title: "Auto-Accept",
+                    selection: $autoAccept,
+                    options: ["From My Devices", "From Everyone", "Never"]
+                )
+                
+                Divider().padding(.leading, 60)
+                
+                PickerSettingRow(
+                    icon: "folder",
+                    iconColor: Color(hex: "007AFF"),
+                    title: "Save Received Files to",
+                    selection: $saveLocation,
+                    options: ["Desktop", "Downloads", "Documents"]
+                )
+            }
+            
+            // Card 3: Diagnostics
+            SettingsCard {
+                DiagnosticsSettingRow(
+                    icon: "bolt.fill",
+                    iconColor: Color(hex: "32D74B"),
+                    title: "Speed Diagnostics",
+                    subtitle: "Help improve your speeds on Blip",
+                    isOn: $speedDiagnostics
+                )
+            }
+            
+            // Card 4: Speed Limits
+            SettingsCard {
+                SpeedLimitRow(
+                    icon: "arrow.up.circle",
+                    iconColor: Color(hex: "8E8E93"),
+                    title: "Sending Speed Limit",
+                    value: "No Limit"
+                )
+                
+                Divider().padding(.leading, 60)
+                
+                SpeedLimitRow(
+                    icon: "arrow.down.circle",
+                    iconColor: Color(hex: "8E8E93"),
+                    title: "Receiving Speed Limit",
+                    value: "No Limit"
+                )
+            }
+            
+            // Card 5: Version Info
+            SettingsCard {
+                InfoSettingRow(
+                    icon: "info.circle",
+                    iconColor: Color(hex: "8E8E93"),
+                    title: "Blip 1.1.15 (20260112093151)",
+                    subtitle: "Last checked: 17 Jan 2026 at 2:08 PM",
+                    buttonTitle: "Check for Updates",
+                    action: { checkForUpdates() }
+                )
+            }
+        }
+    }
+    
+    func checkForUpdates() {
+        // Update check logic
+    }
+}
+
+// MARK: - Help Settings Tab
+
+struct HelpSettingsView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            SettingsCard {
+                HelpServiceRow(
+                    service: "Email",
+                    handle: "hello@blip.net",
+                    buttonTitle: "Compose",
+                    buttonIcon: "doc.on.doc",
+                    iconImage: "google-icon"
+                ) {
+                    openEmail()
+                }
+                
+                Divider().padding(.leading, 60)
+                
+                HelpServiceRow(
+                    service: "Discord",
+                    handle: "Join our community!",
+                    buttonTitle: "Open",
+                    buttonIcon: nil,
+                    iconImage: "discord-icon"
+                ) {
+                    openDiscord()
+                }
+                
+                Divider().padding(.leading, 60)
+                
+                HelpServiceRow(
+                    service: "X.com",
+                    handle: "@blipnet",
+                    buttonTitle: "Open",
+                    buttonIcon: nil,
+                    iconImage: "x-icon"
+                ) {
+                    openTwitter()
+                }
+            }
+        }
+    }
+    
+    func openEmail() { }
+    func openDiscord() { }
+    func openTwitter() { }
+}
+
+// MARK: - Reusable Components
+
+struct SettingsCard<Content: View>: View {
+    let content: Content
+    
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .background(.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+    }
+}
+
+struct ToggleSettingRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor)
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundStyle(.primary)
+            
+            Spacer()
+            
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn ? "On" : "Off")
+    }
+}
+
+struct PickerSettingRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    @Binding var selection: String
+    let options: [String]
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor)
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundStyle(.primary)
+            
+            Spacer()
+            
+            Picker("", selection: $selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 180)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(selection)
+    }
+}
+
+struct DiagnosticsSettingRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor)
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.primary)
+                
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: {}) {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+struct SpeedLimitRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let value: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor.opacity(0.2))
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
+            
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundStyle(.primary)
+            
+            Spacer()
+            
+            HStack(spacing: 6) {
+                Text(value)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                
+                Button(action: {}) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+struct InfoSettingRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    let buttonTitle: String
+    let action: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(iconColor.opacity(0.2))# Apple UX Audit Protocol v2026 (Elite Edition)
 ## Production-Ready Interface Review System
 
 **Role:** Elite Apple Platform UI/UX Architect & Systems Designer  
