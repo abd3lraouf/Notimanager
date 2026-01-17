@@ -85,6 +85,36 @@ struct Colors {
     static let glassBorderDark = NSColor.black.withAlphaComponent(0.3)
     static let glassShadow = NSColor.black.withAlphaComponent(0.1)
     static let glassHighlight = NSColor.white.withAlphaComponent(0.08)
+
+    // Blip Settings colors
+    static let blipBackgroundGray = NSColor(hex: "F5F5F7")  // Blip spec: light gray background
+    static let blipCardWhite = NSColor.white  // Blip spec: pure white cards
+    static let blipSeparator = NSColor(hex: "E5E5E5")  // Blip spec: subtle dividers
+}
+
+// MARK: - Blip Icon Colors
+/// Vibrant brand colors for Blip Settings icon containers
+struct BlipIconColors {
+    /// Green - Launch at login, startup settings
+    static let green = NSColor(hex: "32D74B")
+
+    /// Red/Pink - Sound effects, destructive actions
+    static let red = NSColor(hex: "FF375F")
+
+    /// Purple - Auto-accept, smart features
+    static let purple = NSColor(hex: "BF5AF2")
+
+    /// Blue - Files, storage, data settings
+    static let blue = NSColor(hex: "007AFF")
+
+    /// Gray - Inactive, info, secondary settings
+    static let gray = NSColor(hex: "8E8E93")
+
+    /// Orange - Warnings, cautious settings
+    static let orange = NSColor(hex: "FF9500")
+
+    /// Cyan - Sync, cloud settings
+    static let cyan = NSColor(hex: "32ADE6")
 }
 
 // MARK: - Layout Tokens
@@ -93,7 +123,7 @@ struct Layout {
     // Corner radii
     static let smallCornerRadius: CGFloat = 6
     static let mediumCornerRadius: CGFloat = 10
-    static let cardCornerRadius: CGFloat = 14
+    static let cardCornerRadius: CGFloat = 12  // Blip spec: 12pt (was 14)
     static let largeCornerRadius: CGFloat = 18
 
     // Focus ring
@@ -101,7 +131,8 @@ struct Layout {
     static let focusRingOffset: CGFloat = 2
 
     // Window dimensions
-    static let settingsWindowWidth: CGFloat = 580
+    static let settingsWindowWidth: CGFloat = 540  // Blip spec: 540pt (was 580)
+    static let settingsWindowHeight: CGFloat = 580  // Blip spec: 580pt minimum
     static let settingsViewportHeight: CGFloat = 650
     static let settingsContentHeight: CGFloat = 950
 
@@ -118,6 +149,15 @@ struct Layout {
     static let largeIcon: CGFloat = 24
     static let extraLargeIcon: CGFloat = 32
     static let hugeIcon: CGFloat = 48
+
+    // Blip-specific icon dimensions
+    static let blipIconSize: CGFloat = 32  // Blip spec: 32×32pt icon container
+    static let blipIconCornerRadius: CGFloat = 6  // Blip spec: 6pt icon radius
+    static let blipIconInnerSize: CGFloat = 18  // Blip spec: 18pt inner icon
+
+    // Blip-specific row padding
+    static let blipRowHorizontalPadding: CGFloat = 16  // Blip spec: 16pt H padding
+    static let blipRowVerticalPadding: CGFloat = 12  // Blip spec: 12pt V padding
 
     // Grid
     static let gridSize: CGFloat = 76
@@ -189,6 +229,40 @@ struct Shadow {
         shadow.shadowColor = NSColor.black.withAlphaComponent(0.05)
         shadow.shadowOffset = NSSize(width: 0, height: -1)
         shadow.shadowBlurRadius = 4
+        return shadow
+    }
+}
+
+// MARK: - Blip Shadow Tokens
+/// Blip Settings-specific shadows for card elevation
+struct BlipShadow {
+    /// Blip card shadow - dual layer for ambient occlusion effect
+    /// Primary shadow: opacity 0.06, radius 8pt, y: 2pt
+    /// Secondary shadow: opacity 0.04, radius 4pt, y: 1pt
+    static func card() -> NSShadow {
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.06)  // Blip spec: 0.06
+        shadow.shadowOffset = NSSize(width: 0, height: 2)  // Blip spec: y: 2pt (downward)
+        shadow.shadowBlurRadius = 8  // Blip spec: radius 8pt
+        return shadow
+    }
+
+    /// Ambient secondary shadow (requires CALayer for dual shadows)
+    static func cardAmbient() -> (color: NSColor, offset: CGSize, radius: CGFloat, opacity: CGFloat) {
+        return (
+            NSColor.black,
+            CGSize(width: 0, height: 1),  // Blip spec: y: 1pt
+            4,  // Blip spec: radius 4pt
+            0.04  // Blip spec: opacity 0.04
+        )
+    }
+
+    /// Stronger shadow for elevated/hovered Blip cards
+    static func cardElevated() -> NSShadow {
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.08)  // Slightly stronger
+        shadow.shadowOffset = NSSize(width: 0, height: 3)
+        shadow.shadowBlurRadius = 12
         return shadow
     }
 }

@@ -121,11 +121,6 @@ final class NotificationMoverCoordinator: NSObject {
             SpotlightIndexer.shared.indexAllContent()
         }
 
-        // Register keyboard shortcuts (2026 feature)
-        if #available(macOS 10.15, *) {
-            KeyboardShortcutsManager.shared.registerShortcuts()
-        }
-
         // Delay permission check slightly to allow system to register the app
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.checkAccessibilityPermissions()
