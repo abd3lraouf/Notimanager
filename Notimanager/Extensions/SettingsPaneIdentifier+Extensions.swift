@@ -14,10 +14,10 @@ extension Settings.PaneIdentifier {
     /// General settings pane identifier
     static let general = Self("general")
 
-    /// Interception settings pane identifier
-    static let interception = Self("interception")
+    /// Advanced settings pane identifier
+    static let advanced = Self("advanced")
 
-    /// Position settings pane identifier
+    /// Interception settings pane identifier (uses position identifier for compatibility)
     static let position = Self("position")
 
     /// About settings pane identifier

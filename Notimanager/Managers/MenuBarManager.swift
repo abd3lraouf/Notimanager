@@ -176,17 +176,6 @@ class MenuBarManager: NSObject {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Test Notification
-        let testItem = NSMenuItem(
-            title: "Send Test Notification",
-            action: #selector(sendTestNotification),
-            keyEquivalent: "t"
-        )
-        testItem.target = self
-        menu.addItem(testItem)
-
-        menu.addItem(NSMenuItem.separator())
-
         // Quit
         let quitItem = NSMenuItem(
             title: "Quit Notimanager",
@@ -291,10 +280,6 @@ class MenuBarManager: NSObject {
             rebuildMenu()
         }
         // Note: No fallback for macOS < 13.0 as LaunchAtLogin package requires macOS 13+
-    }
-
-    @objc private func sendTestNotification() {
-        coordinator?.sendTestNotification()
     }
 
     @objc private func quit() {

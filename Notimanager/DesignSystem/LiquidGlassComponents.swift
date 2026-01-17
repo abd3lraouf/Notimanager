@@ -111,6 +111,8 @@ public class LiquidGlassContainer: NSVisualEffectView {
 
     private var hoverTrackingArea: NSTrackingArea?
     private var isHovered: Bool = false
+    private var primaryShadowLayer: CALayer?
+    private var ambientShadowLayer: CALayer?
 
     private let materialConfig: LiquidGlassMaterial
     private let reducedTransparency: Bool
@@ -142,8 +144,8 @@ public class LiquidGlassContainer: NSVisualEffectView {
         layer?.cornerRadius = materialConfig.cornerRadius
         layer?.masksToBounds = false
 
-        // Apply shadows
-        shadow = materialConfig.createShadow()
+        // Apply dual shadows for ambient occlusion effect
+        setupDualShadows()
         setAccessibilityElement(false)
 
         // Apply border
@@ -151,6 +153,39 @@ public class LiquidGlassContainer: NSVisualEffectView {
 
         // Setup hover tracking
         setupHoverTracking()
+    }
+
+    private func setupDualShadows() {
+        guard let layer = self.layer else { return }
+
+        // Primary shadow
+        let primaryShadow = CALayer()
+        primaryShadow.shadowColor = NSColor.black.withAlphaComponent(CGFloat(materialConfig.shadowIntensity.opacity)).cgColor
+        primaryShadow.shadowOffset = CGSize(width: 0, height: -materialConfig.shadowIntensity.offset)
+        primaryShadow.shadowRadius = materialConfig.shadowIntensity.radius
+        primaryShadow.shadowOpacity = Float(materialConfig.shadowIntensity.opacity)
+        primaryShadow.frame = bounds
+        layer.addSublayer(primaryShadow)
+        self.primaryShadowLayer = primaryShadow
+
+        // Secondary ambient shadow (softer, closer) - creates depth through ambient occlusion
+        let ambientShadow = CALayer()
+        ambientShadow.shadowColor = NSColor.black.withAlphaComponent(CGFloat(materialConfig.shadowIntensity.secondaryOpacity)).cgColor
+        ambientShadow.shadowOffset = CGSize(width: 0, height: -materialConfig.shadowIntensity.offset / 2)
+        ambientShadow.shadowRadius = materialConfig.shadowIntensity.radius / 2
+        ambientShadow.shadowOpacity = Float(materialConfig.shadowIntensity.secondaryOpacity)
+        ambientShadow.frame = bounds
+        layer.insertSublayer(ambientShadow, at: 0)
+        self.ambientShadowLayer = ambientShadow
+
+        // Apply shadow to the view itself
+        shadow = materialConfig.createShadow()
+    }
+
+    public override func layout() {
+        super.layout()
+        primaryShadowLayer?.frame = bounds
+        ambientShadowLayer?.frame = bounds
     }
 
     private func updateBorder() {
@@ -223,10 +258,11 @@ public class SettingsSectionHeader: NSView {
         addSubview(titleLabel)
 
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: topAnchor),
+            titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: Spacing.pt4),
             titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
-            titleLabel.bottomAnchor.constraint(equalTo: bottomAnchor)
+            titleLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Spacing.pt4),
+            heightAnchor.constraint(greaterThanOrEqualToConstant: 20)
         ])
     }
 }
@@ -322,14 +358,28 @@ public class LiquidGlassCheckboxRow: NSView {
 
     private func setupAccessibility() {
         let title = checkbox.title
-        let helpText = descriptionLabel?.stringValue ?? "Toggle \(title.lowercased())"
 
-        checkbox.setAccessibilityTitle(title)
-        checkbox.setAccessibilityHelp(helpText)
-
+        // Use compound label for checkbox with description
+        // This provides complete context in one announcement
         if let description = descriptionLabel {
-            description.setAccessibilityLabel(description.stringValue)
+            let combinedLabel = "\(title). \(description.stringValue)"
+            checkbox.setAccessibilityLabel(combinedLabel)
+        } else {
+            checkbox.setAccessibilityLabel(title)
         }
+
+        // Help should explain impact, not repeat label
+        // Only add help if there's meaningful additional context
+        if let description = descriptionLabel {
+            checkbox.setAccessibilityHelp("This setting affects how Notimanager handles notifications")
+        }
+
+        // Set proper role for clarity
+        checkbox.setAccessibilityRole(.checkBox)
+
+        // Description label should not be separately accessible
+        // as its content is already included in the checkbox label
+        descriptionLabel?.setAccessibilityElement(false)
     }
 
     /// Returns the checkbox button for external reference

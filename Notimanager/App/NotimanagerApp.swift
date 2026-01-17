@@ -17,6 +17,10 @@ struct NotimanagerApp {
         let app = NSApplication.shared
         app.delegate = delegate
 
+        // Set activation policy to accessory to run as menu bar app without Dock icon
+        // This must be set BEFORE app.run() to take effect
+        app.setActivationPolicy(.accessory)
+
         // Check if another instance is already running
         if !isSingleInstance() {
             NSLog("Notimanager is already running. Exiting this instance.")

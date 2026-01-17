@@ -30,7 +30,7 @@ class WindowMonitorService {
     /// Tracks windows that are currently being stabilized (fighting animation)
     /// Key: AXUIElement (wrapped), Value: Start time of stabilization
     private var stabilizingWindows: [AXUIElementWrapper: Date] = [:]
-    private let stabilizationDuration: TimeInterval = 1.0 // Stabilize for 1 second
+    private let stabilizationDuration: TimeInterval = 2.0 // Stabilize for 2 seconds (longer for smoother experience)
 
     // MARK: - Dependencies
 
@@ -44,8 +44,8 @@ class WindowMonitorService {
 
     // MARK: - Configuration
 
-    private let checkInterval: TimeInterval = 0.2 // Check every 200ms
-    private let stabilizationInterval: TimeInterval = 0.05 // Re-adjust every 50ms
+    private let checkInterval: TimeInterval = 0.016 // Check every ~16ms (~60fps) for ultra-fast detection
+    private let stabilizationInterval: TimeInterval = 0.016 // Re-adjust every ~16ms for smooth stabilization
     private let notificationSizeMin = CGSize(width: 200, height: 60)
     private let notificationSizeMax = CGSize(width: 800, height: 200)
 
@@ -140,26 +140,56 @@ class WindowMonitorService {
     }
 
     private func handleWindowCreated(element: AXUIElement) {
-        // Wait slightly for window to be ready/sized
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self = self else { return }
-            
-            // Get size
-            guard let size = AXElementManager.shared.getSize(of: element) else { return }
-            
-            // Move it initially
-            self.moveNotificationElement(element, size: size)
-            
-            // Start stabilizing it (to fight animation)
-            self.startStabilizing(element)
+        // Validate element is still valid before proceeding
+        var pid: pid_t = 0
+        let result = AXUIElementGetPid(element, &pid)
+        guard result == .success && pid > 0 else {
+            LoggingService.shared.debug("   ⚠️ Invalid window element, skipping")
+            return
         }
+
+        // Move immediately without delay for smoother interception
+        // Get size immediately - retry if not available
+        guard let size = AXElementManager.shared.getSize(of: element) else {
+            // If size isn't available yet, retry once after a short delay
+            // Don't be too aggressive to avoid overwhelming the window system
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self, weak element] in
+                guard let self = self, let element = element else { return }
+                // Validate element is still valid
+                var checkPid: pid_t = 0
+                let checkResult = AXUIElementGetPid(element, &checkPid)
+                guard checkResult == .success && checkPid > 0 else { return }
+
+                if let s = AXElementManager.shared.getSize(of: element) {
+                    self.moveNotificationElement(element, size: s, immediateMode: true)
+                    self.startStabilizing(element)
+                }
+            }
+            return
+        }
+
+        // Move it immediately in immediate mode (sets position multiple times)
+        moveNotificationElement(element, size: size, immediateMode: true)
+
+        // Start stabilizing it (to fight animation)
+        startStabilizing(element)
     }
 
-    private func moveNotificationElement(_ window: AXUIElement, size: CGSize) {
+    private func moveNotificationElement(_ window: AXUIElement, size: CGSize, immediateMode: Bool = false) {
         let config = ConfigurationManager.shared
         let configPosition = config.currentPosition
 
         guard configPosition != .topRight else { return }
+
+        // Validate window element before proceeding
+        var pid: pid_t = 0
+        let pidResult = AXUIElementGetPid(window, &pid)
+        guard pidResult == .success && pid > 0 else {
+            return
+        }
+
+        // Debug logging to track which position is being used
+        LoggingService.shared.debug("   🎯 Target position: \(configPosition.displayName)")
 
         // Check for widgets
         if let identifier = AXElementManager.shared.getWindowIdentifier(window),
@@ -167,8 +197,20 @@ class WindowMonitorService {
             // LoggingService.shared.debug("   ℹ️ Skipping move - widget window detected: \(identifier)")
             return
         }
-        
-        // Find the actual banner content within the window
+
+        // Skip NSThemeWidgetSharedWindowRemoteButton windows which cause system errors
+        if let role = AXElementManager.shared.getRole(of: window),
+           role.contains("RemoteButton") || role.contains("ThemeWidget") {
+            LoggingService.shared.debug("   ℹ️ Skipping move - system widget button detected")
+            return
+        }
+
+        // Check if normal notification interception is enabled
+        guard config.interceptNotifications else {
+            return
+        }
+
+        // For normal notifications, find the actual banner content within the window
         let targetSubroles = [
             "AXNotificationCenterBanner",
             "AXNotificationCenterAlert",
@@ -177,14 +219,17 @@ class WindowMonitorService {
             "AXBanner",
             "AXAlert"
         ]
-        
-        // Try to find the banner element. If not found, fall back to using the window itself.
-        let elementToMeasure = AXElementManager.shared.findElementBySubrole(
+
+        // Try to find the banner element. If not found, skip (window popups no longer supported)
+        guard let elementToMeasure = AXElementManager.shared.findElementBySubrole(
             root: window,
             targetSubroles: targetSubroles,
             osVersion: ProcessInfo.processInfo.operatingSystemVersion
-        ) ?? window
-        
+        ) else {
+            LoggingService.shared.debug("   ℹ️ Skipping move - No banner element found (not a standard notification)")
+            return
+        }
+
         guard let currentBannerPos = AXElementManager.shared.getPosition(of: elementToMeasure),
               let bannerSize = AXElementManager.shared.getSize(of: elementToMeasure),
               let currentWindowPos = AXElementManager.shared.getPosition(of: window) else {
@@ -202,12 +247,12 @@ class WindowMonitorService {
         // Calculate the delta needed
         let deltaX = targetBannerPos.x - currentBannerPos.x
         let deltaY = targetBannerPos.y - currentBannerPos.y
-        
+
         // If delta is negligible, stop
         if abs(deltaX) < 1.0 && abs(deltaY) < 1.0 {
             return
         }
-        
+
         // Apply delta to the WINDOW
         let newWindowPos = CGPoint(
             x: currentWindowPos.x + deltaX,
@@ -217,13 +262,50 @@ class WindowMonitorService {
         LoggingService.shared.debug("   Attempting to stabilize notification to \(configPosition.displayName)")
         LoggingService.shared.debug("   Banner: \(currentBannerPos) -> \(targetBannerPos) (Delta: \(deltaX), \(deltaY))")
         LoggingService.shared.debug("   Window: \(currentWindowPos) -> \(newWindowPos)")
-        
-        let success = AXElementManager.shared.setPosition(of: window, x: newWindowPos.x, y: newWindowPos.y)
-        
-        if success {
-            // LoggingService.shared.info("   ✅ Successfully moved notification!")
+
+        applyPositionToWindow(window, targetPos: newWindowPos, deltaX: deltaX, deltaY: deltaY, immediateMode: immediateMode)
+    }
+
+    /// Applies position to a window with optional immediate mode firehose
+    /// - Parameters:
+    ///   - window: The window element to position
+    ///   - targetPos: The target position
+    ///   - deltaX: X delta for logging
+    ///   - deltaY: Y delta for logging
+    ///   - immediateMode: Whether to use aggressive positioning
+    private func applyPositionToWindow(_ window: AXUIElement, targetPos: CGPoint, deltaX: CGFloat, deltaY: CGFloat, immediateMode: Bool = false) {
+        // In immediate mode, set position more aggressively to catch it before first render
+        if immediateMode {
+            let success = AXElementManager.shared.setPosition(of: window, x: targetPos.x, y: targetPos.y)
+
+            // Set position 2 more times with small delays to ensure it sticks
+            // This combats the macOS animation that tries to return it to default
+            // Using fewer retries to avoid overwhelming the window system
+            for delay in [0.002, 0.008] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak window] in
+                    guard let window = window else { return }
+                    // Validate window is still valid before setting position
+                    var checkPid: pid_t = 0
+                    let checkResult = AXUIElementGetPid(window, &checkPid)
+                    if checkResult == .success {
+                        _ = AXElementManager.shared.setPosition(of: window, x: targetPos.x, y: targetPos.y)
+                    }
+                }
+            }
+
+            if success {
+                // LoggingService.shared.info("   ✅ Successfully moved notification!")
+            } else {
+                LoggingService.shared.error("   ⚠️ Failed to move notification")
+            }
         } else {
-            LoggingService.shared.error("   ⚠️ Failed to move notification")
+            let success = AXElementManager.shared.setPosition(of: window, x: targetPos.x, y: targetPos.y)
+
+            if success {
+                // LoggingService.shared.info("   ✅ Successfully moved notification!")
+            } else {
+                LoggingService.shared.error("   ⚠️ Failed to move notification")
+            }
         }
     }
 
@@ -287,13 +369,15 @@ class WindowMonitorService {
                 // Add to known windows
                 knownWindowNumbers.insert(windowNumber)
 
-                // Try to move it
+                // Try to move it immediately
                 if let axElement = getAXElementForWindow(
                     windowNumber: windowNumber,
                     processID: pid_t(ownerPID),
                     position: CGPoint(x: x, y: y),
                     size: CGSize(width: width, height: height)
                 ) {
+                    // Move immediately with immediate mode (firehose positioning)
+                    moveNotificationElement(axElement, size: CGSize(width: width, height: height), immediateMode: true)
                     // Start stabilizing it
                     startStabilizing(axElement)
                 }

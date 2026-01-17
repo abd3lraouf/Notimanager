@@ -47,11 +47,11 @@ final class NotificationMoverCoordinator: NSObject {
     private lazy var settingsWindowController: SettingsWindowController = {
         let generalPane = GeneralSettingsViewController()
         let interceptionPane = InterceptionSettingsViewController()
-        let positionPane = PositionSettingsViewController()
+        let advancedPane = AdvancedSettingsViewController()
         let aboutPane = AboutSettingsViewController()
 
         let controller = SettingsWindowController(
-            panes: [generalPane, interceptionPane, positionPane, aboutPane],
+            panes: [generalPane, interceptionPane, advancedPane, aboutPane],
             style: settingsPaneStyle,
             animated: true
         )
@@ -115,6 +115,16 @@ final class NotificationMoverCoordinator: NSObject {
 
         logSystemInfo()
         requestNotificationPermissions()
+
+        // Index content for Spotlight (2026 feature)
+        if #available(macOS 10.15, *) {
+            SpotlightIndexer.shared.indexAllContent()
+        }
+
+        // Register keyboard shortcuts (2026 feature)
+        if #available(macOS 10.15, *) {
+            KeyboardShortcutsManager.shared.registerShortcuts()
+        }
 
         // Delay permission check slightly to allow system to register the app
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -265,6 +275,27 @@ final class NotificationMoverCoordinator: NSObject {
             // Update the isVisible property which will handle showing/hiding
             menuBarManager.isVisible = !configurationManager.isMenuBarIconHidden
 
+        case .interceptionChanged:
+            logger.info("Interception settings changed")
+            // Update monitoring based on new interception settings
+            if configurationManager.isEnabled {
+                // Update window monitoring (only for normal notifications now)
+                if configurationManager.interceptNotifications {
+                    windowMonitor.startMonitoring()
+                } else {
+                    windowMonitor.stopMonitoring()
+                }
+
+                // Update widget monitoring
+                if configurationManager.interceptWidgets {
+                    widgetMonitor.startMonitoring()
+                } else {
+                    widgetMonitor.stopMonitoring()
+                }
+
+                logger.info("Window monitoring: \(configurationManager.interceptNotifications ? "active" : "inactive"), Widget monitoring: \(configurationManager.interceptWidgets ? "active" : "inactive")")
+            }
+
         case .reset:
             logger.info("Configuration reset to defaults")
             moveAllNotifications()
@@ -374,13 +405,19 @@ extension NotificationMoverCoordinator: CoordinatorAction {
 
     func restartApp() {
         logger.info("Restarting application...")
-        NSApp.terminate(nil)
+
+        // Use the industry-standard AppRestart utility
+        AppRestart.restart(delay: 0.5)
     }
 
     // MARK: - Settings Actions
 
     func updatePosition(to position: NotificationPosition) {
         configurationManager.currentPosition = position
+        // Donate activity for Siri Suggestions
+        if #available(macOS 10.15, *) {
+            ActivityManager.shared.donateChangePositionActivity(to: position)
+        }
     }
 
     func showPermissionWindowFromSettings() {
@@ -396,14 +433,35 @@ extension NotificationMoverCoordinator: CoordinatorAction {
     func showSettings() {
         settingsWindowController.show()
         NSApp.activate(ignoringOtherApps: true)
+        // Donate activity for Siri Suggestions
+        if #available(macOS 10.15, *) {
+            ActivityManager.shared.donateSettingsActivity()
+        }
+    }
+
+    func showSettings(pane: Settings.PaneIdentifier) {
+        settingsWindowController.show(pane: pane)
+        NSApp.activate(ignoringOtherApps: true)
+        // Donate activity for Siri Suggestions
+        if #available(macOS 10.15, *) {
+            ActivityManager.shared.donateSettingsActivity()
+        }
     }
 
     func toggleEnabled() {
         configurationManager.isEnabled.toggle()
+        // Donate activity for Siri Suggestions
+        if #available(macOS 10.15, *) {
+            ActivityManager.shared.donateTogglePositioningActivity(isEnabled: configurationManager.isEnabled)
+        }
     }
 
     func sendTestNotification() {
         sendTestNotificationInternal()
+        // Donate activity for Siri Suggestions
+        if #available(macOS 10.15, *) {
+            ActivityManager.shared.donateSendTestNotificationActivity()
+        }
     }
 
     func quit() {

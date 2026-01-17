@@ -243,8 +243,8 @@ class PositionGridButton: NSView {
         // Animate icon scale
         if let iconLayer = iconView?.layer {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.3
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.duration = Animation.springResponse
+                context.timingFunction = Animation.defaultCurve
                 context.allowsImplicitAnimation = true
                 iconLayer.setAffineTransform(CGAffineTransform(scaleX: iconScale, y: iconScale))
             }
@@ -268,24 +268,62 @@ class PositionGridButton: NSView {
     }
 
     private func applyDefaultShadow() {
-        containerView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.08).cgColor
-        containerView.layer?.shadowOffset = NSSize(width: 0, height: -2)
-        containerView.layer?.shadowRadius = 8
-        containerView.layer?.shadowOpacity = 1.0
+        // Use consistent dual-shadow system
+        containerView.applySubtleShadow()
     }
 
     private func applyHoverShadow() {
-        containerView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.12).cgColor
-        containerView.layer?.shadowOffset = NSSize(width: 0, height: -4)
-        containerView.layer?.shadowRadius = 12
-        containerView.layer?.shadowOpacity = 1.0
+        // Use consistent dual-shadow system with medium intensity
+        containerView.applyMediumShadow()
     }
 
     private func applyElevatedShadow() {
-        containerView.layer?.shadowColor = Colors.accent.withAlphaComponent(0.3).cgColor
-        containerView.layer?.shadowOffset = NSSize(width: 0, height: -6)
-        containerView.layer?.shadowRadius = 20
-        containerView.layer?.shadowOpacity = 1.0
+        // Selected state uses strong shadow with accent color tint
+        // Apply the strong shadow with custom accent color
+        guard containerView.wantsLayer else { return }
+
+        let primaryConfig: (
+            color: NSColor,
+            offset: CGSize,
+            radius: CGFloat,
+            opacity: Float
+        ) = (
+            Colors.accent.withAlphaComponent(0.30),
+            CGSize(width: 0, height: -6),
+            20,
+            0.30
+        )
+
+        let ambientConfig: (
+            color: NSColor,
+            offset: CGSize,
+            radius: CGFloat,
+            opacity: Float
+        ) = (
+            Colors.accent.withAlphaComponent(0.15),
+            CGSize(width: 0, height: -3),
+            10,
+            0.15
+        )
+
+        // Apply primary shadow
+        containerView.layer?.shadowColor = primaryConfig.color.cgColor
+        containerView.layer?.shadowOffset = primaryConfig.offset
+        containerView.layer?.shadowRadius = primaryConfig.radius
+        containerView.layer?.shadowOpacity = primaryConfig.opacity
+
+        // Create ambient shadow layer
+        let ambientLayerName = "ambientShadow"
+        containerView.layer?.sublayers?.removeAll(where: { $0.name == ambientLayerName })
+
+        let ambientLayer = CALayer()
+        ambientLayer.name = ambientLayerName
+        ambientLayer.shadowColor = ambientConfig.color.cgColor
+        ambientLayer.shadowOffset = ambientConfig.offset
+        ambientLayer.shadowRadius = ambientConfig.radius
+        ambientLayer.shadowOpacity = ambientConfig.opacity
+        ambientLayer.frame = containerView.bounds
+        containerView.layer?.insertSublayer(ambientLayer, at: 0)
     }
 
     private func updateSelectionRing(cornerRadius: CGFloat) {
@@ -301,8 +339,8 @@ class PositionGridButton: NSView {
             let strokeAnimation = CABasicAnimation(keyPath: "strokeEnd")
             strokeAnimation.fromValue = 0
             strokeAnimation.toValue = 1
-            strokeAnimation.duration = 0.4
-            strokeAnimation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            strokeAnimation.duration = Animation.springResponse
+            strokeAnimation.timingFunction = Animation.defaultCurve
             ring.add(strokeAnimation, forKey: "strokeAnimation")
             ring.strokeEnd = 1
         } else {
@@ -382,8 +420,8 @@ class PositionGridButton: NSView {
         }
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = Animation.springResponse
+            context.timingFunction = Animation.defaultCurve
             context.allowsImplicitAnimation = true
 
             // Subtle scale up
@@ -401,8 +439,8 @@ class PositionGridButton: NSView {
         }
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            context.duration = Animation.springResponse
+            context.timingFunction = Animation.defaultCurve
             context.allowsImplicitAnimation = true
 
             // Return to normal scale
@@ -418,8 +456,8 @@ class PositionGridButton: NSView {
         }
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.1
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = Animation.instant
+            context.timingFunction = Animation.defaultCurve
             context.allowsImplicitAnimation = true
 
             // Scale down with spring
@@ -447,8 +485,8 @@ class PositionGridButton: NSView {
         }
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.4
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0.1, 0.25, 1.0)
+            context.duration = Animation.springResponse
+            context.timingFunction = Animation.defaultCurve
             context.allowsImplicitAnimation = true
 
             // Bounce back
@@ -475,8 +513,8 @@ class PositionGridButton: NSView {
         #endif
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.4
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0.1, 0.25, 1.0)
+            context.duration = Animation.springResponse
+            context.timingFunction = Animation.defaultCurve
             context.allowsImplicitAnimation = true
 
             // Pop animation for selection
@@ -491,10 +529,10 @@ class PositionGridButton: NSView {
             updateStyle()
 
             // Return to final scale after pop
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + Animation.springResponse) { [self] in
                 NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.2
-                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    context.duration = Animation.fast
+                    context.timingFunction = Animation.defaultCurve
                     context.allowsImplicitAnimation = true
 
                     let finalScale: CGFloat = self.isSelected ? 1.02 : 1.0
@@ -591,7 +629,7 @@ class PositionGridButton: NSView {
 
         // Focus is handled by system, but we can add subtle animation
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
+            context.duration = Animation.fast
             context.allowsImplicitAnimation = true
             backgroundEffectView.layer?.borderWidth = 2.0
         }
@@ -601,7 +639,7 @@ class PositionGridButton: NSView {
         guard AppearanceManager.shared.shouldAnimate else { return }
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
+            context.duration = Animation.instant
             context.allowsImplicitAnimation = true
             updateStyle()
         }

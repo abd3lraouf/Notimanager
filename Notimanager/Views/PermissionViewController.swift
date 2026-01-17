@@ -154,7 +154,7 @@ final class PermissionViewController: NSViewController {
 
     private func setupTitleSection() {
         titleLabel = NSTextField(labelWithString: "Accessibility Permission")
-        titleLabel.font = NSFont.systemFont(ofSize: 22, weight: .bold)
+        titleLabel.font = Typography.title1
         titleLabel.alignment = .center
         titleLabel.textColor = Colors.label
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -163,7 +163,7 @@ final class PermissionViewController: NSViewController {
 
     private func setupDescriptionSection() {
         descriptionLabel = NSTextField(wrappingLabelWithString: "Notimanager needs accessibility permission to reposition your notifications on screen.")
-        descriptionLabel.font = NSFont.systemFont(ofSize: 13, weight: .regular)
+        descriptionLabel.font = Typography.body
         descriptionLabel.alignment = .center
         descriptionLabel.textColor = Colors.secondaryLabel
         descriptionLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -188,7 +188,7 @@ final class PermissionViewController: NSViewController {
 
         // Explanation text
         explanationLabel = NSTextField(wrappingLabelWithString: "Accessibility is a macOS feature that lets apps move UI elements on your screen. Notimanager uses this to reposition your notifications.")
-        explanationLabel.font = NSFont.systemFont(ofSize: 12, weight: .regular)
+        explanationLabel.font = Typography.caption1
         explanationLabel.textColor = Colors.secondaryLabel
         explanationLabel.translatesAutoresizingMaskIntoConstraints = false
         permissionExplanationView.addSubview(explanationLabel)
@@ -212,7 +212,7 @@ final class PermissionViewController: NSViewController {
         contentView.addSubview(featureListView)
 
         let featureTitle = NSTextField(labelWithString: "What you'll be able to do:")
-        featureTitle.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        featureTitle.font = Typography.subheadline
         featureTitle.textColor = Colors.label
         featureTitle.translatesAutoresizingMaskIntoConstraints = false
         featureListView.addSubview(featureTitle)
@@ -261,7 +261,7 @@ final class PermissionViewController: NSViewController {
         containerView.addSubview(iconView)
 
         let label = NSTextField(wrappingLabelWithString: title)
-        label.font = NSFont.systemFont(ofSize: 12, weight: .regular)
+        label.font = Typography.caption1
         label.textColor = Colors.label
         label.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(label)
@@ -300,13 +300,13 @@ final class PermissionViewController: NSViewController {
         statusContainerView.addSubview(statusIconView)
 
         statusTitleLabel = NSTextField(labelWithString: "")
-        statusTitleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        statusTitleLabel.font = Typography.headline
         statusTitleLabel.textColor = Colors.label
         statusTitleLabel.translatesAutoresizingMaskIntoConstraints = false
         statusContainerView.addSubview(statusTitleLabel)
 
         statusMessageLabel = NSTextField(wrappingLabelWithString: "")
-        statusMessageLabel.font = NSFont.systemFont(ofSize: 12, weight: .regular)
+        statusMessageLabel.font = Typography.caption1
         statusMessageLabel.textColor = Colors.secondaryLabel
         statusMessageLabel.translatesAutoresizingMaskIntoConstraints = false
         statusContainerView.addSubview(statusMessageLabel)
@@ -448,8 +448,8 @@ final class PermissionViewController: NSViewController {
         currentState = newState
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = Animation.normal
-            context.timingFunction = Animation.easeOut
+            context.duration = Animation.springResponse
+            context.timingFunction = Animation.defaultCurve
 
             switch currentState {
             case .notDetermined:

@@ -95,22 +95,8 @@ class PermissionViewModel {
     func restartApp() {
         debugLog("Restarting app...")
 
-        let task = Process()
-        task.launchPath = "/usr/bin/open"
-        task.arguments = ["-n", "-a", Bundle.main.bundlePath]
-
-        do {
-            try task.run()
-            debugLog("New instance launched, waiting before quit...")
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.debugLog("Terminating current instance...")
-                NSApplication.shared.terminate(nil)
-            }
-        } catch {
-            debugLog("Failed to relaunch: \(error)")
-            showError("Failed to restart app: \(error.localizedDescription)")
-        }
+        // Use the industry-standard AppRestart utility
+        AppRestart.restart(delay: 0.5)
     }
 
     // MARK: - Helpers

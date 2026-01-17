@@ -3,7 +3,7 @@
 //  Notimanager
 //
 //  Created on 2025-01-15.
-//  Centralized configuration management with change notifications
+//  Centralized configuration management with UserDefaults persistence and change notifications
 //
 
 import AppKit
@@ -24,7 +24,6 @@ class ConfigurationManager {
         debugMode = false
         isMenuBarIconHidden = false
         interceptNotifications = true
-        interceptWindowPopups = false
         interceptWidgets = false
         includeAppleWidgets = false
         // Then load from storage (which will override defaults if values exist)
@@ -39,7 +38,6 @@ class ConfigurationManager {
         static let debugMode = "debugMode"
         static let isMenuBarIconHidden = "isMenuBarIconHidden"
         static let interceptNotifications = "interceptNotifications"
-        static let interceptWindowPopups = "interceptWindowPopups"
         static let interceptWidgets = "interceptWidgets"
         static let includeAppleWidgets = "includeAppleWidgets"
     }
@@ -83,14 +81,6 @@ class ConfigurationManager {
 
     /// Whether to intercept normal notifications
     var interceptNotifications: Bool {
-        didSet {
-            saveToStorage()
-            notifyObservers(of: .interceptionChanged)
-        }
-    }
-
-    /// Whether to intercept window popups
-    var interceptWindowPopups: Bool {
         didSet {
             saveToStorage()
             notifyObservers(of: .interceptionChanged)
@@ -159,7 +149,6 @@ class ConfigurationManager {
         UserDefaults.standard.set(debugMode, forKey: Keys.debugMode)
         UserDefaults.standard.set(isMenuBarIconHidden, forKey: Keys.isMenuBarIconHidden)
         UserDefaults.standard.set(interceptNotifications, forKey: Keys.interceptNotifications)
-        UserDefaults.standard.set(interceptWindowPopups, forKey: Keys.interceptWindowPopups)
         UserDefaults.standard.set(interceptWidgets, forKey: Keys.interceptWidgets)
         UserDefaults.standard.set(includeAppleWidgets, forKey: Keys.includeAppleWidgets)
     }
@@ -177,7 +166,6 @@ class ConfigurationManager {
         debugMode = UserDefaults.standard.bool(forKey: Keys.debugMode)
         isMenuBarIconHidden = UserDefaults.standard.bool(forKey: Keys.isMenuBarIconHidden)
         interceptNotifications = UserDefaults.standard.object(forKey: Keys.interceptNotifications) as? Bool ?? true
-        interceptWindowPopups = UserDefaults.standard.bool(forKey: Keys.interceptWindowPopups)
         interceptWidgets = UserDefaults.standard.bool(forKey: Keys.interceptWidgets)
         includeAppleWidgets = UserDefaults.standard.bool(forKey: Keys.includeAppleWidgets)
     }
@@ -189,7 +177,6 @@ class ConfigurationManager {
         debugMode = false
         isMenuBarIconHidden = false
         interceptNotifications = true
-        interceptWindowPopups = false
         interceptWidgets = false
         includeAppleWidgets = false
         saveToStorage()
@@ -208,7 +195,6 @@ extension ConfigurationManager {
         var debugMode: Bool
         var isMenuBarIconHidden: Bool
         var interceptNotifications: Bool
-        var interceptWindowPopups: Bool
         var interceptWidgets: Bool
         var includeAppleWidgets: Bool
     }
@@ -221,7 +207,6 @@ extension ConfigurationManager {
             debugMode: debugMode,
             isMenuBarIconHidden: isMenuBarIconHidden,
             interceptNotifications: interceptNotifications,
-            interceptWindowPopups: interceptWindowPopups,
             interceptWidgets: interceptWidgets,
             includeAppleWidgets: includeAppleWidgets
         )
@@ -235,7 +220,6 @@ extension ConfigurationManager {
         debugMode = state.debugMode
         isMenuBarIconHidden = state.isMenuBarIconHidden
         interceptNotifications = state.interceptNotifications
-        interceptWindowPopups = state.interceptWindowPopups
         interceptWidgets = state.interceptWidgets
         includeAppleWidgets = state.includeAppleWidgets
     }

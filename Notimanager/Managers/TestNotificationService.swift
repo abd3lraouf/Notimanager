@@ -190,8 +190,9 @@ class TestNotificationService {
         content.sound = .default
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+        let uniqueId = "simple-test-\(Date().timeIntervalSince1970)-\(UUID().uuidString)"
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
+            identifier: uniqueId,
             content: content,
             trigger: trigger
         )
@@ -260,8 +261,9 @@ class TestNotificationService {
 
         // Create trigger with short delay
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+        let uniqueId = "widget-test-\(Date().timeIntervalSince1970)-\(UUID().uuidString)"
         let request = UNNotificationRequest(
-            identifier: "widget-test-\(UUID().uuidString)",
+            identifier: uniqueId,
             content: content,
             trigger: trigger
         )
@@ -377,8 +379,9 @@ class TestNotificationService {
         content.body = "If you see this at \(positionName), it's working! 🎯"
         content.sound = .default
 
+        let uniqueId = "test-notification-\(Date().timeIntervalSince1970)-\(UUID().uuidString)"
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
+            identifier: uniqueId,
             content: content,
             trigger: nil
         )

@@ -101,20 +101,24 @@ class AccessibilityPermissionService {
     /// Starts polling for permission changes
     /// - Parameter interval: Polling interval in seconds
     /// - Returns: Timer that can be invalidated to stop polling
+    @MainActor
     func startPermissionPolling(interval: TimeInterval = 1.0, onChange: @escaping (PermissionStatus) -> Void) -> Timer {
         var lastStatus = getPermissionStatus()
 
         return Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            let currentStatus = self.getPermissionStatus()
 
-            if currentStatus != lastStatus {
-                lastStatus = currentStatus
-                onChange(currentStatus)
+            Task { @MainActor in
+                let currentStatus = self.getPermissionStatus()
 
-                // Notify all observers
-                self.permissionObservers.forEach { observer in
-                    observer(currentStatus)
+                if currentStatus != lastStatus {
+                    lastStatus = currentStatus
+                    onChange(currentStatus)
+
+                    // Notify all observers
+                    self.permissionObservers.forEach { observer in
+                        observer(currentStatus)
+                    }
                 }
             }
         }

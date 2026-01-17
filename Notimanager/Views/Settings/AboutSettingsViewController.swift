@@ -56,7 +56,7 @@ final class AboutSettingsViewController: NSViewController, SettingsPane {
         setupUI()
         populateInfo()
         setupAccessibility()
-        preferredContentSize = NSSize(width: 320, height: 260)
+        preferredContentSize = NSSize(width: Layout.settingsWindowWidth, height: 300)
     }
 
     // MARK: - Setup
@@ -67,8 +67,8 @@ final class AboutSettingsViewController: NSViewController, SettingsPane {
         view.addSubview(contentStack)
 
         NSLayoutConstraint.activate([
+            contentStack.topAnchor.constraint(equalTo: view.topAnchor, constant: Spacing.pt40),
             contentStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            contentStack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             contentStack.widthAnchor.constraint(equalToConstant: 280)
         ])
     }
@@ -248,19 +248,19 @@ struct AboutSettingsViewController_Previews: PreviewProvider {
             // Light mode preview
             AboutSettingsViewControllerRepresentable()
                 .previewDisplayName("Light Mode")
-                .frame(width: 320, height: 260)
+                .frame(width: Layout.settingsWindowWidth, height: 400)
                 .preferredColorScheme(.light)
 
             // Dark mode preview
             AboutSettingsViewControllerRepresentable()
                 .previewDisplayName("Dark Mode")
-                .frame(width: 320, height: 260)
+                .frame(width: Layout.settingsWindowWidth, height: 400)
                 .preferredColorScheme(.dark)
 
             // With reduced transparency
             AboutSettingsViewControllerRepresentable()
                 .previewDisplayName("Reduced Transparency")
-                .frame(width: 320, height: 260)
+                .frame(width: Layout.settingsWindowWidth, height: 400)
         }
     }
 }

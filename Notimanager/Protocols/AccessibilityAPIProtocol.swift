@@ -302,7 +302,7 @@ protocol AccessibilityPermissionProtocol {
 // PermissionStatus is defined below
 
 /// Status of accessibility permissions
-enum PermissionStatus {
+enum PermissionStatus: Equatable, Sendable {
     case granted
     case denied
 }

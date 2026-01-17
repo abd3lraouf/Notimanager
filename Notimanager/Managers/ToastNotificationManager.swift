@@ -24,18 +24,21 @@ class ToastNotificationManager {
     }
     
     // MARK: - Properties
-    
+
     /// Queue of toasts waiting to be displayed
     private var toastQueue: [ToastNotification] = []
-    
+
     /// Currently displayed toast
     private var currentToast: ToastNotification?
-    
+
     /// Timer for auto-dismissing current toast
     private var dismissTimer: Timer?
-    
+
     /// Window for displaying toasts
     private var toastWindow: NSWindow?
+
+    /// View for the current toast (kept alive to prevent deallocation while window shows it)
+    private var currentToastView: ToastNotificationView?
     
     /// Delegate for toast callbacks
     weak var delegate: ToastNotificationDelegate?
@@ -147,25 +150,26 @@ class ToastNotificationManager {
     /// - Parameter toast: The toast to show
     private func showToast(_ toast: ToastNotification) {
         currentToast = toast
-        
-        // Create and configure toast window
+
+        // Create and configure toast view (store strongly to prevent deallocation)
         let toastView = ToastNotificationView(toast: toast)
-        
+        currentToastView = toastView
+
         // Calculate window size
         let windowSize = toastView.fittingSize
-        
+
         // Calculate position (top right of screen with margin)
         let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
         let windowX = screenRect.maxX - windowSize.width - Spacing.pt20
         let windowY = screenRect.maxY - windowSize.height - Spacing.pt20
-        
+
         let windowFrame = NSRect(
             x: windowX,
             y: windowY,
             width: windowSize.width,
             height: windowSize.height
         )
-        
+
         // Create window
         toastWindow = NSWindow(
             contentRect: windowFrame,
@@ -173,36 +177,36 @@ class ToastNotificationManager {
             backing: .buffered,
             defer: false
         )
-        
+
         guard let window = toastWindow else { return }
-        
+
         // Configure window
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = true
         window.level = .floating
         window.ignoresMouseEvents = false
-        
+
         // Set content
         window.contentView = toastView
-        
+
         // Show window with animation
         window.alphaValue = 0.0
         window.makeKeyAndOrderFront(nil)
-        
+
         // Animate in
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Animation.normal
             context.timingFunction = Animation.easeOut
             window.animator().alphaValue = 1.0
         }
-        
+
         // Start dismiss timer
         startDismissTimer(for: toast)
-        
+
         // Notify delegate
         delegate?.toastDidShow(toast)
-        
+
         logger.debug("Toast shown: \(toast.title)")
     }
     
@@ -210,17 +214,20 @@ class ToastNotificationManager {
     /// - Parameter toast: The toast to dismiss
     private func dismissToast(_ toast: ToastNotification) {
         guard let window = toastWindow else { return }
-        
-        // Stop dismiss timer
+
+        // Stop dismiss timer immediately to prevent race conditions
         dismissTimer?.invalidate()
         dismissTimer = nil
-        
-        // Animate out
-        NSAnimationContext.runAnimationGroup { context in
+
+        // Animate out with proper cleanup
+        NSAnimationContext.runAnimationGroup { [weak self] context in
+            guard let self = self else { return }
+
             context.duration = Animation.fast
             context.timingFunction = Animation.easeIn
             context.completionHandler = { [weak self] in
-                window.close()
+                // Close window if it still exists
+                self?.toastWindow?.close()
                 self?.cleanupAfterDismissal(of: toast)
             }
             window.animator().alphaValue = 0.0
@@ -231,11 +238,14 @@ class ToastNotificationManager {
     /// - Parameter toast: The toast to set timer for
     private func startDismissTimer(for toast: ToastNotification) {
         dismissTimer?.invalidate()
-        
+
         dismissTimer = Timer.scheduledTimer(withTimeInterval: toast.duration, repeats: false) { [weak self] _ in
             guard let self = self else { return }
-            self.delegate?.toastWillExpire(toast)
-            self.dismissToast(toast)
+            // Only dismiss if this is still the current toast (prevents stale timer callbacks)
+            if self.currentToast?.id == toast.id {
+                self.delegate?.toastWillExpire(toast)
+                self.dismissToast(toast)
+            }
         }
     }
     
@@ -244,15 +254,16 @@ class ToastNotificationManager {
     private func cleanupAfterDismissal(of toast: ToastNotification) {
         currentToast = nil
         toastWindow = nil
-        
-        // Notify delegate
+        currentToastView = nil  // Clear the view reference to release it
+
+        // Notify delegate (with weak self to prevent potential retain cycles)
         delegate?.toastDidDismiss(toast)
-        
+
         logger.debug("Toast dismissed: \(toast.title)")
-        
-        // Process next toast in queue
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.processQueue()
+
+        // Process next toast in queue (use weak self to prevent crashes)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.processQueue()
         }
     }
 }
@@ -261,30 +272,55 @@ class ToastNotificationManager {
 
 /// A view that displays a single toast notification
 class ToastNotificationView: NSView {
-    
+
     // MARK: - Properties
-    
+
     private let toast: ToastNotification
-    private let card: LiquidGlassCard
-    private let iconImageView: NSImageView
-    private let titleLabel: NSTextField
-    private let messageLabel: NSTextField?
-    private let stackView: NSStackView
-    
+    private var card: LiquidGlassCard!
+    private var iconImageView: NSImageView!
+    private var titleLabel: NSTextField!
+    private var messageLabel: NSTextField?
+    private var stackView: NSStackView!
+
     // MARK: - Initialization
-    
+
     init(toast: ToastNotification) {
         self.toast = toast
-        
+        super.init(frame: .zero)
+        setupView()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    // MARK: - Setup
+
+    private func setupView() {
         // Create card
         card = LiquidGlassCard(style: .elevated)
-        
-        // Create icon
+
+        // Create icon with safe fallback
         iconImageView = NSImageView()
-        iconImageView.image = NSImage(systemSymbolName: toast.type.icon, accessibilityDescription: toast.type.displayName)
-        iconImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: Layout.mediumIcon, weight: .medium)
-        iconImageView.contentTintColor = toast.type.color
-        
+        iconImageView.wantsLayer = true
+        iconImageView.translatesAutoresizingMaskIntoConstraints = false
+
+        if #available(macOS 11.0, *) {
+            let config = NSImage.SymbolConfiguration(pointSize: Layout.mediumIcon, weight: .medium)
+            iconImageView.symbolConfiguration = config
+            iconImageView.image = NSImage(systemSymbolName: toast.type.icon, accessibilityDescription: toast.type.displayName)
+            if iconImageView.image == nil {
+                iconImageView.image = NSImage(size: NSSize(width: 20, height: 20))
+            }
+        } else {
+            iconImageView.image = NSImage(size: NSSize(width: 20, height: 20))
+        }
+
+        // Set contentTintColor after image is set
+        if iconImageView.image != nil {
+            iconImageView.contentTintColor = toast.type.color
+        }
+
         // Create title label
         titleLabel = NSTextField(labelWithString: toast.title)
         titleLabel.font = Typography.headline
@@ -292,21 +328,22 @@ class ToastNotificationView: NSView {
         titleLabel.isEditable = false
         titleLabel.isBordered = false
         titleLabel.backgroundColor = .clear
-        
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
         // Create message label if needed
         if let message = toast.message {
-            messageLabel = NSTextField(wrappingLabelWithString: message)
-            messageLabel?.font = Typography.body
-            messageLabel?.textColor = Colors.secondaryLabel
-            messageLabel?.isEditable = false
-            messageLabel?.isBordered = false
-            messageLabel?.backgroundColor = .clear
-            messageLabel?.maximumNumberOfLines = 2
-            messageLabel?.cell?.truncatesLastVisibleLine = true
-        } else {
-            messageLabel = nil
+            let field = NSTextField(wrappingLabelWithString: message)
+            field.font = Typography.body
+            field.textColor = Colors.secondaryLabel
+            field.isEditable = false
+            field.isBordered = false
+            field.backgroundColor = .clear
+            field.translatesAutoresizingMaskIntoConstraints = false
+            field.maximumNumberOfLines = 2
+            field.cell?.truncatesLastVisibleLine = true
+            messageLabel = field
         }
-        
+
         // Create stack view
         let arrangedSubviews: [NSView] = [iconImageView, titleLabel]
         stackView = NSStackView(views: arrangedSubviews)
@@ -314,15 +351,10 @@ class ToastNotificationView: NSView {
         stackView.spacing = Spacing.pt12
         stackView.alignment = .centerY
         stackView.distribution = .fill
-        
-        super.init(frame: .zero)
-        
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
         setupLayout()
         setupAccessibility()
-    }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
     }
     
     // MARK: - Setup

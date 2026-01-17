@@ -1,20 +1,24 @@
 //
-//  InterceptionSettingsViewController.swift
+//  PositionSettingsViewController.swift
 //  Notimanager
 //
-//  Interception settings pane following Apple HIG standards with Liquid Glass design
-//  Allows users to configure what types of notifications to intercept
+//  Interception settings pane with position preview and testing controls
+//  Allows users to configure notification interception and test with different notification types
 //
 
 import Cocoa
 import Settings
-import SwiftUI
+import UserNotifications
 
 final class InterceptionSettingsViewController: NSViewController, SettingsPane {
 
+    // MARK: - ConfigurationObserver Conformance
+
+    private var observerToken: Any?
+
     // MARK: - SettingsPane Conformance
 
-    let paneIdentifier = Settings.PaneIdentifier.interception
+    let paneIdentifier = Settings.PaneIdentifier.position
     let paneTitle = NSLocalizedString("Interception", comment: "Settings pane title")
 
     var toolbarItemIcon: NSImage {
@@ -30,37 +34,37 @@ final class InterceptionSettingsViewController: NSViewController, SettingsPane {
     private var scrollView: NSScrollView!
     private var contentView: NSView!
 
-    // Notification Types Section
-    private var notificationTypesSectionView: NSView!
+    // Interception Controls Section
+    private var interceptionSection: NSView!
     private var interceptNotificationsCheckboxRow: LiquidGlassCheckboxRow!
-    private var interceptWindowPopupsCheckboxRow: LiquidGlassCheckboxRow!
     private var interceptWidgetsCheckboxRow: LiquidGlassCheckboxRow!
 
-    // Apple Widgets Section (conditionally shown)
-    private var appleWidgetsSectionView: NSView?
-    private var includeAppleWidgetsCheckboxRow: LiquidGlassCheckboxRow?
+    // Position Preview Section
+    private var positionPreviewSection: NSView!
+    private var positionGridContainer: NSView!
+    private var positionGridView: PositionGridView!
 
     // Test Section
-    private var testSectionView: NSView!
+    private var testSection: NSView!
+    private var testBannerButton: NSButton!
     private var testWidgetButton: NSButton!
+    private var testStatusContainer: NSView!
     private var testStatusLabel: NSTextField!
 
     // MARK: - Properties
 
-    private let configurationManager: ConfigurationManager
-    private let logger: LoggingService
-    private let testNotificationService: TestNotificationService
+    private let configurationManager = ConfigurationManager.shared
+    private let testNotificationService = TestNotificationService.shared
+    private let logger = LoggingService.shared
+
+    private var currentPosition: NotificationPosition {
+        get { configurationManager.currentPosition }
+        set { configurationManager.currentPosition = newValue }
+    }
 
     // MARK: - Lifecycle
 
-    init(
-        configurationManager: ConfigurationManager = .shared,
-        logger: LoggingService = .shared,
-        testNotificationService: TestNotificationService = .shared
-    ) {
-        self.configurationManager = configurationManager
-        self.logger = logger
-        self.testNotificationService = testNotificationService
+    init() {
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -69,7 +73,6 @@ final class InterceptionSettingsViewController: NSViewController, SettingsPane {
     }
 
     override func loadView() {
-        // Create scroll view for better handling of smaller windows
         scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -78,40 +81,41 @@ final class InterceptionSettingsViewController: NSViewController, SettingsPane {
         scrollView.borderType = .noBorder
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        // Create content view
         contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = contentView
 
-        // Set the view as the scroll view
         self.view = scrollView
 
         setupUI()
     }
 
     private func setupUI() {
-        // === Notification Types Section ===
-        notificationTypesSectionView = createNotificationTypesSection()
-        contentView.addSubview(notificationTypesSectionView)
+        // === Interception Controls Section ===
+        interceptionSection = createInterceptionSection()
+        contentView.addSubview(interceptionSection)
 
-        // === Apple Widgets Section (conditionally added) ===
-        if configurationManager.interceptWidgets {
-            createAppleWidgetsSection()
-        }
+        // === Position Preview Section ===
+        positionPreviewSection = createPositionPreviewSection()
+        contentView.addSubview(positionPreviewSection)
 
         // === Test Section ===
-        testSectionView = createTestSection()
-        contentView.addSubview(testSectionView)
+        testSection = createTestSection()
+        contentView.addSubview(testSection)
 
         // === Constraints ===
         setupConstraints()
+
+        // === Initial State ===
     }
 
-    private func createNotificationTypesSection() -> NSView {
+    // MARK: - Section Creation
+
+    private func createInterceptionSection() -> NSView {
         let containerView = NSView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
-        let header = SettingsSectionHeader(title: NSLocalizedString("Notification Types", comment: "Section header"))
+        let header = SettingsSectionHeader(title: NSLocalizedString("Notification Interception", comment: "Section header"))
         containerView.addSubview(header)
 
         let contentContainer = NSView()
@@ -121,274 +125,373 @@ final class InterceptionSettingsViewController: NSViewController, SettingsPane {
         // Intercept Normal Notifications
         interceptNotificationsCheckboxRow = LiquidGlassCheckboxRow(
             title: NSLocalizedString("Normal notifications", comment: "Checkbox label"),
-            description: NSLocalizedString("Intercept standard system notification banners and alerts from apps like Calendar, Mail, and Messages", comment: "Description text"),
+            description: NSLocalizedString("Intercept standard system notification banners and alerts", comment: "Description text"),
             initialState: .off,
             action: #selector(interceptNotificationsClicked(_:)),
             target: self
         )
         interceptNotificationsCheckboxRow.checkboxButton.setAccessibilityIdentifier("interceptNotificationsCheckbox")
-        interceptNotificationsCheckboxRow.checkboxButton.setAccessibilityRole(.checkbox)
-        interceptNotificationsCheckboxRow.checkboxButton.setAccessibilityHelp("When enabled, Notimanager will intercept and reposition standard system notifications from apps like Calendar, Mail, and Messages.")
+        interceptNotificationsCheckboxRow.checkboxButton.setAccessibilityRole(.checkBox)
         contentContainer.addSubview(interceptNotificationsCheckboxRow)
 
         // Add separator
         let separator1 = LiquidGlassSeparator()
-        separator1.setAccessibilityRole(.separator)
+        separator1.setAccessibilityRole(.splitGroup)
         contentContainer.addSubview(separator1)
-
-        // Intercept Window Popups
-        interceptWindowPopupsCheckboxRow = LiquidGlassCheckboxRow(
-            title: NSLocalizedString("Window popups", comment: "Checkbox label"),
-            description: NSLocalizedString("Intercept floating window notifications and system dialogs", comment: "Description text"),
-            initialState: .off,
-            action: #selector(interceptWindowPopupsClicked(_:)),
-            target: self
-        )
-        interceptWindowPopupsCheckboxRow.checkboxButton.setAccessibilityIdentifier("interceptWindowPopupsCheckbox")
-        interceptWindowPopupsCheckboxRow.checkboxButton.setAccessibilityRole(.checkbox)
-        interceptWindowPopupsCheckboxRow.checkboxButton.setAccessibilityHelp("When enabled, Notimanager will intercept floating windows and dialog boxes that appear as notifications.")
-        contentContainer.addSubview(interceptWindowPopupsCheckboxRow)
-
-        // Add separator
-        let separator2 = LiquidGlassSeparator()
-        separator2.setAccessibilityRole(.separator)
-        contentContainer.addSubview(separator2)
 
         // Intercept Widgets
         interceptWidgetsCheckboxRow = LiquidGlassCheckboxRow(
             title: NSLocalizedString("Widgets", comment: "Checkbox label"),
-            description: NSLocalizedString("Intercept Notification Center and interactive widgets. Enable this to reposition widget updates.", comment: "Description text"),
+            description: NSLocalizedString("Intercept Notification Center and interactive widgets", comment: "Description text"),
             initialState: .off,
             action: #selector(interceptWidgetsClicked(_:)),
             target: self
         )
         interceptWidgetsCheckboxRow.checkboxButton.setAccessibilityIdentifier("interceptWidgetsCheckbox")
-        interceptWidgetsCheckboxRow.checkboxButton.setAccessibilityRole(.checkbox)
-        interceptWidgetsCheckboxRow.checkboxButton.setAccessibilityHelp("When enabled, Notimanager will intercept and reposition widget updates from Notification Center and interactive widgets.")
+        interceptWidgetsCheckboxRow.checkboxButton.setAccessibilityRole(.checkBox)
         contentContainer.addSubview(interceptWidgetsCheckboxRow)
 
-        // Setup constraints for content
-        NSLayoutConstraint.activate([
-            interceptNotificationsCheckboxRow.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            interceptNotificationsCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            interceptNotificationsCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-
-            separator1.topAnchor.constraint(equalTo: interceptNotificationsCheckboxRow.bottomAnchor, constant: Spacing.pt24),
-            separator1.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            separator1.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-
-            interceptWindowPopupsCheckboxRow.topAnchor.constraint(equalTo: separator1.bottomAnchor, constant: Spacing.pt24),
-            interceptWindowPopupsCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            interceptWindowPopupsCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-
-            separator2.topAnchor.constraint(equalTo: interceptWindowPopupsCheckboxRow.bottomAnchor, constant: Spacing.pt24),
-            separator2.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            separator2.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-
-            interceptWidgetsCheckboxRow.topAnchor.constraint(equalTo: separator2.bottomAnchor, constant: Spacing.pt24),
-            interceptWidgetsCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            interceptWidgetsCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            interceptWidgetsCheckboxRow.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
-        ])
-
-        // Setup container constraints
+        // Setup constraints
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: containerView.topAnchor),
             header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
             header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
 
+            interceptNotificationsCheckboxRow.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt16),
+            interceptNotificationsCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            interceptNotificationsCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+
+            separator1.topAnchor.constraint(equalTo: interceptNotificationsCheckboxRow.bottomAnchor, constant: Spacing.pt12),
+            separator1.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            separator1.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+
+            interceptWidgetsCheckboxRow.topAnchor.constraint(equalTo: separator1.bottomAnchor, constant: Spacing.pt12),
+            interceptWidgetsCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            interceptWidgetsCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            interceptWidgetsCheckboxRow.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+
             contentContainer.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt16),
             contentContainer.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
             contentContainer.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
-            contentContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+            contentContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -Spacing.pt16)
         ])
 
         return containerView
     }
 
-    private func createAppleWidgetsSection() {
+    private func createPositionPreviewSection() -> NSView {
         let containerView = NSView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
-        self.appleWidgetsSectionView = containerView
 
-        let header = SettingsSectionHeader(title: NSLocalizedString("Apple Widgets", comment: "Section header"))
+        // Section Header
+        let header = SettingsSectionHeader(title: NSLocalizedString("Position Preview", comment: "Section header"))
         containerView.addSubview(header)
 
-        let contentContainer = NSView()
-        contentContainer.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(contentContainer)
+        // Section Description
+        let description = NSTextField(wrappingLabelWithString: NSLocalizedString(
+            "See exactly where notifications will appear.",
+            comment: "Position preview description"
+        ))
+        description.font = Typography.body
+        description.textColor = Colors.secondaryLabel
+        description.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(description)
 
-        // Include Apple Widgets
-        includeAppleWidgetsCheckboxRow = LiquidGlassCheckboxRow(
-            title: NSLocalizedString("Include Apple widgets", comment: "Checkbox label"),
-            description: NSLocalizedString("Also intercept built-in Apple widgets when widget interception is enabled", comment: "Description text"),
-            initialState: .off,
-            action: #selector(includeAppleWidgetsClicked(_:)),
-            target: self
-        )
-        includeAppleWidgetsCheckboxRow!.checkboxButton.setAccessibilityIdentifier("includeAppleWidgetsCheckbox")
-        includeAppleWidgetsCheckboxRow!.checkboxButton.setAccessibilityRole(.checkbox)
-        includeAppleWidgetsCheckboxRow!.checkboxButton.setAccessibilityHelp("When enabled, Notimanager will also intercept and reposition built-in Apple widgets alongside third-party widgets.")
-        contentContainer.addSubview(includeAppleWidgetsCheckboxRow!)
+        // Position Grid Container
+        positionGridContainer = NSView()
+        positionGridContainer.wantsLayer = true
+        positionGridContainer.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        positionGridContainer.layer?.cornerRadius = Layout.cardCornerRadius
+        positionGridContainer.layer?.masksToBounds = false // Don't clip shadows and overflow
+        positionGridContainer.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(positionGridContainer)
 
-        // Setup constraints for content
+        // Position Grid View
+        let gridView = PositionGridView(selection: currentPosition) { [weak self] newPosition in
+            self?.handlePositionChange(newPosition)
+        }
+        gridView.translatesAutoresizingMaskIntoConstraints = false
+        positionGridContainer.addSubview(gridView)
+        self.positionGridView = gridView
+
+        // Setup constraints
         NSLayoutConstraint.activate([
-            includeAppleWidgetsCheckboxRow!.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            includeAppleWidgetsCheckboxRow!.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            includeAppleWidgetsCheckboxRow!.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            includeAppleWidgetsCheckboxRow!.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
-        ])
-
-        // Setup container constraints
-        NSLayoutConstraint.activate([
+            // Header
             header.topAnchor.constraint(equalTo: containerView.topAnchor),
             header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
             header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
 
-            contentContainer.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt16),
-            contentContainer.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
-            contentContainer.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
-            contentContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+            // Description
+            description.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt8),
+            description.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            description.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+
+            // Grid Container
+            positionGridContainer.topAnchor.constraint(equalTo: description.bottomAnchor, constant: Spacing.pt16),
+            positionGridContainer.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
+            positionGridContainer.widthAnchor.constraint(equalToConstant: Layout.gridSize * 2 + Layout.gridSpacing + Spacing.pt48),
+            positionGridContainer.heightAnchor.constraint(equalToConstant: Layout.gridSize * 2 + Layout.gridSpacing + Spacing.pt48),
+
+            // Grid View - centered in container
+            gridView.centerXAnchor.constraint(equalTo: positionGridContainer.centerXAnchor),
+            gridView.centerYAnchor.constraint(equalTo: positionGridContainer.centerYAnchor),
+
+            // Grid Container - set bottom anchor
+            positionGridContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -Spacing.pt12)
         ])
 
-        contentView.addSubview(containerView)
+        return containerView
     }
 
     private func createTestSection() -> NSView {
         let containerView = NSView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
-        let header = SettingsSectionHeader(title: NSLocalizedString("Test", comment: "Section header"))
+        let header = SettingsSectionHeader(title: NSLocalizedString("Test Interception", comment: "Section header"))
         containerView.addSubview(header)
 
-        let contentContainer = NSView()
-        contentContainer.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(contentContainer)
+        let description = NSTextField(wrappingLabelWithString: NSLocalizedString(
+            "Send test notifications to verify interception is working.",
+            comment: "Test section description"
+        ))
+        description.font = Typography.body
+        description.textColor = Colors.secondaryLabel
+        description.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(description)
 
-        // Test button with modern styling
-        testWidgetButton = NSButton()
-        testWidgetButton.title = NSLocalizedString("Send Widget Test Notification", comment: "Button label")
-        testWidgetButton.target = self
-        testWidgetButton.action = #selector(testWidgetButtonClicked(_:))
-        testWidgetButton.translatesAutoresizingMaskIntoConstraints = false
+        // Create button stack view
+        let buttonStackView = NSStackView()
+        buttonStackView.orientation = .horizontal
+        buttonStackView.spacing = Spacing.pt8
+        buttonStackView.alignment = .top
+        buttonStackView.distribution = .fill
+        buttonStackView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(buttonStackView)
 
-        if #available(macOS 10.14, *) {
-            testWidgetButton.bezelStyle = .rounded
-            testWidgetButton.keyEquivalent = ""
-        } else {
-            testWidgetButton.bezelStyle = .rounded
-        }
+        // Test Banner Notification Button
+        testBannerButton = createTestButton(
+            title: NSLocalizedString("Banner", comment: "Button label"),
+            isPrimary: true,
+            action: #selector(testBannerClicked(_:))
+        )
+        buttonStackView.addArrangedSubview(testBannerButton)
 
-        testWidgetButton.font = Typography.body
-        testWidgetButton.sizeToFit()
+        // Test Widget Update Button
+        testWidgetButton = createTestButton(
+            title: NSLocalizedString("Widget", comment: "Button label"),
+            isPrimary: false,
+            action: #selector(testWidgetClicked(_:))
+        )
+        buttonStackView.addArrangedSubview(testWidgetButton)
 
-        // Accessibility
-        testWidgetButton.setAccessibilityTitle(NSLocalizedString("Send Widget Test Notification", comment: "Button accessibility title"))
-        testWidgetButton.setAccessibilityHelp(NSLocalizedString("Sends a test notification styled like a widget update", comment: "Button accessibility help"))
+        // Set equal widths for buttons
+        testBannerButton.widthAnchor.constraint(equalToConstant: 110).isActive = true
+        testWidgetButton.widthAnchor.constraint(equalToConstant: 110).isActive = true
 
-        contentContainer.addSubview(testWidgetButton)
+        // Status Container
+        testStatusContainer = NSView()
+        testStatusContainer.wantsLayer = true
+        testStatusContainer.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        testStatusContainer.layer?.cornerRadius = Layout.mediumCornerRadius
+        testStatusContainer.translatesAutoresizingMaskIntoConstraints = false
+        testStatusContainer.isHidden = true
+        containerView.addSubview(testStatusContainer)
 
-        // Status label for feedback
-        testStatusLabel = NSTextField(labelWithString: NSLocalizedString("Ready to test", comment: "Status label"))
-        testStatusLabel.font = Typography.caption1
+        // Status Label
+        testStatusLabel = NSTextField(labelWithString: "")
+        testStatusLabel.font = Typography.callout
         testStatusLabel.textColor = Colors.secondaryLabel
+        testStatusLabel.alignment = .center
         testStatusLabel.translatesAutoresizingMaskIntoConstraints = false
-        testStatusLabel.setAccessibilityRole(.staticText)
-        contentContainer.addSubview(testStatusLabel)
+        testStatusContainer.addSubview(testStatusLabel)
 
-        // Setup constraints for content
+        // Setup constraints
         NSLayoutConstraint.activate([
-            testWidgetButton.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            testWidgetButton.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            testWidgetButton.trailingAnchor.constraint(lessThanOrEqualTo: contentContainer.trailingAnchor),
-            testWidgetButton.heightAnchor.constraint(equalToConstant: Layout.regularButtonHeight),
-
-            testStatusLabel.topAnchor.constraint(equalTo: testWidgetButton.bottomAnchor, constant: Spacing.pt12),
-            testStatusLabel.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            testStatusLabel.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            testStatusLabel.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
-        ])
-
-        // Setup container constraints
-        NSLayoutConstraint.activate([
+            // Header
             header.topAnchor.constraint(equalTo: containerView.topAnchor),
             header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
             header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
 
-            contentContainer.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt16),
-            contentContainer.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
-            contentContainer.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
-            contentContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+            // Description
+            description.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt8),
+            description.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            description.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+
+            // Button stack view
+            buttonStackView.topAnchor.constraint(equalTo: description.bottomAnchor, constant: Spacing.pt12),
+            buttonStackView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            buttonStackView.trailingAnchor.constraint(lessThanOrEqualTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+
+            // Status Container
+            testStatusContainer.topAnchor.constraint(equalTo: buttonStackView.bottomAnchor, constant: Spacing.pt12),
+            testStatusContainer.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            testStatusContainer.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+            testStatusContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -Spacing.pt16),
+
+            // Status Label
+            testStatusLabel.topAnchor.constraint(equalTo: testStatusContainer.topAnchor, constant: Spacing.pt12),
+            testStatusLabel.leadingAnchor.constraint(equalTo: testStatusContainer.leadingAnchor, constant: Spacing.pt16),
+            testStatusLabel.trailingAnchor.constraint(equalTo: testStatusContainer.trailingAnchor, constant: -Spacing.pt16),
+            testStatusLabel.bottomAnchor.constraint(equalTo: testStatusContainer.bottomAnchor, constant: -Spacing.pt12)
         ])
 
         return containerView
     }
 
-    private func setupConstraints() {
-        var constraints: [NSLayoutConstraint] = []
+    private func createTestButton(title: String, isPrimary: Bool, action: Selector) -> NSButton {
+        let button = NSButton(title: title, target: self, action: action)
+        button.translatesAutoresizingMaskIntoConstraints = false
 
-        // Content view width constraint (minimum width for proper layout)
-        constraints += [
-            contentView.widthAnchor.constraint(equalToConstant: Layout.settingsWindowWidth),
-            contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 500)
-        ]
-
-        // Notification Types Section
-        constraints += [
-            notificationTypesSectionView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: Spacing.pt24),
-            notificationTypesSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            notificationTypesSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
-        ]
-
-        // Build constraint chain for middle sections
-        var previousSection: NSView = notificationTypesSectionView
-
-        // Apple Widgets Section (if exists)
-        if let appleWidgetsSection = appleWidgetsSectionView {
-            constraints += [
-                appleWidgetsSection.topAnchor.constraint(equalTo: previousSection.bottomAnchor, constant: Spacing.pt32),
-                appleWidgetsSection.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                appleWidgetsSection.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
-            ]
-            previousSection = appleWidgetsSection
+        if #available(macOS 10.14, *) {
+            button.bezelStyle = isPrimary ? .rounded : .regularSquare
+            button.keyEquivalent = isPrimary ? "\r" : ""
         }
 
-        // Test Section
-        constraints += [
-            testSectionView.topAnchor.constraint(equalTo: previousSection.bottomAnchor, constant: Spacing.pt32),
-            testSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            testSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            testSectionView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -Spacing.pt32)
-        ]
+        button.font = Typography.body
 
-        NSLayoutConstraint.activate(constraints)
+        button.setAccessibilityTitle(title)
+        button.setAccessibilityHelp("Sends a test notification")
+
+        return button
+    }
+
+    private func setupConstraints() {
+        NSLayoutConstraint.activate([
+            // Content view
+            contentView.widthAnchor.constraint(equalToConstant: Layout.settingsWindowWidth),
+
+            // Interception Section
+            interceptionSection.topAnchor.constraint(equalTo: contentView.topAnchor, constant: Spacing.pt16),
+            interceptionSection.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            interceptionSection.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+
+            // Position Preview Section
+            positionPreviewSection.topAnchor.constraint(equalTo: interceptionSection.bottomAnchor, constant: Spacing.pt20),
+            positionPreviewSection.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            positionPreviewSection.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+
+            // Test Section
+            testSection.topAnchor.constraint(equalTo: positionPreviewSection.bottomAnchor, constant: Spacing.pt20),
+            testSection.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            testSection.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            testSection.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -Spacing.pt24)
+        ])
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        preferredContentSize = NSSize(width: Layout.settingsWindowWidth, height: 500)
+        preferredContentSize = NSSize(width: Layout.settingsWindowWidth, height: 600)
         populateSettings()
+        setupTestNotification()
+        setupAccessibility()
+        setupConfigurationObserver()
     }
 
-    // MARK: - Populate Settings
+    // MARK: - Setup
 
     private func populateSettings() {
-        // Intercept notifications
-        let shouldInterceptNotifications = configurationManager.interceptNotifications
-        interceptNotificationsCheckboxRow.checkboxButton.state = shouldInterceptNotifications ? .on : .off
+        // Interception settings
+        interceptNotificationsCheckboxRow.checkboxButton.state = configurationManager.interceptNotifications ? .on : .off
+        interceptWidgetsCheckboxRow.checkboxButton.state = configurationManager.interceptWidgets ? .on : .off
 
-        // Intercept window popups
-        let shouldInterceptWindowPopups = configurationManager.interceptWindowPopups
-        interceptWindowPopupsCheckboxRow.checkboxButton.state = shouldInterceptWindowPopups ? .on : .off
+        // Position settings are handled by PositionGridView
+    }
 
-        // Intercept widgets
-        let shouldInterceptWidgets = configurationManager.interceptWidgets
-        interceptWidgetsCheckboxRow.checkboxButton.state = shouldInterceptWidgets ? .on : .off
+    private func setupTestNotification() {
+        updateTestStatus(.idle)
 
-        // Include Apple widgets (conditionally)
-        if let checkboxRow = includeAppleWidgetsCheckboxRow {
-            let shouldIncludeAppleWidgets = configurationManager.includeAppleWidgets
-            checkboxRow.checkboxButton.state = shouldIncludeAppleWidgets ? .on : .off
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleTestNotificationStatusChanged(_:)),
+            name: NSNotification.Name("TestNotificationStatusChanged"),
+            object: nil
+        )
+    }
+
+    private func setupAccessibility() {
+        view.setAccessibilityElement(true)
+        view.setAccessibilityRole(.group)
+        view.setAccessibilityLabel("Interception Settings")
+    }
+
+    private func setupConfigurationObserver() {
+        // Observe UserDefaults changes for position to update UI when position changes from menu
+        observerToken = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleUserDefaultsDidChange()
+        }
+    }
+
+    private func handleUserDefaultsDidChange() {
+        // Update grid selection when position changes from menu
+        positionGridView?.updateSelection(to: configurationManager.currentPosition)
+    }
+
+    // MARK: - Position Handling
+
+    private func handlePositionChange(_ newPosition: NotificationPosition) {
+        currentPosition = newPosition
+        logger.log("Position changed to: \(newPosition.displayName)")
+
+        AccessibilityManager.shared.announce("Notification position changed to \(newPosition.displayName)")
+
+        // Show system notification after a short delay to ensure configuration is fully updated
+        // This prevents the notification from appearing at the old position
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.sendSystemNotification(for: newPosition)
+        }
+
+        // Note: ConfigurationManager automatically notifies all observers via its observer pattern
+        // and saves to UserDefaults, so we don't need to post additional notifications here
+    }
+
+    private func sendSystemNotification(for position: NotificationPosition) {
+        let content = UNMutableNotificationContent()
+        content.title = NSLocalizedString("Position Changed", comment: "Notification title")
+        content.body = String(format: NSLocalizedString("Notifications will appear in the %@.", comment: "Notification body"), position.displayName)
+        content.sound = .default
+
+        // Create unique identifier with timestamp to prevent any collisions
+        let uniqueId = "position-change-\(position.rawValue)-\(Date().timeIntervalSince1970)-\(UUID().uuidString)"
+
+        let request = UNNotificationRequest(
+            identifier: uniqueId,
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                LoggingService.shared.error("Failed to send position change notification: \(error)")
+            }
+        }
+    }
+
+    // MARK: - Test Status
+
+    private func updateTestStatus(_ status: TestNotificationStatus) {
+        switch status {
+        case .idle:
+            testStatusContainer?.isHidden = true
+            testBannerButton?.isEnabled = true
+            testWidgetButton?.isEnabled = true
+        case .checkingPermissions, .sending, .waitingForInterception:
+            testStatusContainer?.isHidden = false
+            testStatusLabel?.stringValue = status.localizedDescription
+            testStatusLabel?.textColor = status.color
+            testBannerButton?.isEnabled = false
+            testWidgetButton?.isEnabled = false
+            AccessibilityManager.shared.announce(status.localizedDescription)
+        case .interceptedSuccessfully, .notIntercepted, .permissionDenied, .permissionError, .sendingFailed, .unknownStatus:
+            testStatusContainer?.isHidden = false
+            testStatusLabel?.stringValue = status.localizedDescription
+            testStatusLabel?.textColor = status.color
+            testBannerButton?.isEnabled = true
+            testWidgetButton?.isEnabled = true
+            AccessibilityManager.shared.announce(status.localizedDescription)
         }
     }
 
@@ -401,86 +504,70 @@ final class InterceptionSettingsViewController: NSViewController, SettingsPane {
         AccessibilityManager.shared.announce("Normal notification interception \(shouldIntercept ? "enabled" : "disabled")")
     }
 
-    @objc func interceptWindowPopupsClicked(_ sender: NSButton) {
-        let shouldIntercept = sender.state == .on
-        configurationManager.interceptWindowPopups = shouldIntercept
-        logger.log("Window popup interception \(shouldIntercept ? "enabled" : "disabled")")
-        AccessibilityManager.shared.announce("Window popup interception \(shouldIntercept ? "enabled" : "disabled")")
-    }
-
     @objc func interceptWidgetsClicked(_ sender: NSButton) {
         let shouldIntercept = sender.state == .on
         configurationManager.interceptWidgets = shouldIntercept
         logger.log("Widget interception \(shouldIntercept ? "enabled" : "disabled")")
-
-        // Show or hide Apple Widgets section based on widget interception state
-        // Animate the transition with smooth spring physics
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            context.allowsImplicitAnimation = true
-
-            if shouldIntercept {
-                if appleWidgetsSectionView == nil {
-                    createAppleWidgetsSection()
-                    setupConstraints()
-
-                    // Populate the new checkbox
-                    if let checkboxRow = includeAppleWidgetsCheckboxRow {
-                        let shouldIncludeAppleWidgets = configurationManager.includeAppleWidgets
-                        checkboxRow.checkboxButton.state = shouldIncludeAppleWidgets ? .on : .off
-                    }
-                }
-                appleWidgetsSectionView?.isHidden = false
-                appleWidgetsSectionView?.alphaValue = 0
-                appleWidgetsSectionView?.alphaValue = 1.0
-            } else {
-                appleWidgetsSectionView?.alphaValue = 0
-                appleWidgetsSectionView?.isHidden = true
-            }
-        }
-
         AccessibilityManager.shared.announce("Widget interception \(shouldIntercept ? "enabled" : "disabled")")
     }
 
-    @objc func includeAppleWidgetsClicked(_ sender: NSButton) {
-        let shouldInclude = sender.state == .on
-        configurationManager.includeAppleWidgets = shouldInclude
-        logger.log("Apple widgets inclusion \(shouldInclude ? "enabled" : "disabled")")
+    @objc func testBannerClicked(_ sender: NSButton) {
+        testNotificationService.sendTestNotification(to: currentPosition)
+    }
 
-        // Provide additional context for this setting
-        if shouldInclude {
-            AccessibilityManager.shared.announce("Apple widgets will now be intercepted along with third-party widgets")
-        } else {
-            AccessibilityManager.shared.announce("Only third-party widgets will be intercepted")
+    @objc func testWidgetClicked(_ sender: NSButton) {
+        testNotificationService.sendWidgetTestNotification(to: currentPosition)
+    }
+
+    @objc private func handleTestNotificationStatusChanged(_ notification: Notification) {
+        if let status = notification.userInfo?["status"] as? TestNotificationStatus {
+            updateTestStatus(status)
         }
     }
 
-    @objc func testWidgetButtonClicked(_ sender: NSButton) {
-        logger.log("Sending widget test notification")
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+}
 
-        // Disable button during test
-        testWidgetButton.isEnabled = false
-        testStatusLabel.stringValue = NSLocalizedString("Sending test notification...", comment: "Status message")
-        testStatusLabel.textColor = .systemOrange
+// MARK: - TestNotificationStatus Extension
 
-        // Send widget test notification
-        testNotificationService.sendWidgetTestNotification(to: configurationManager.currentPosition)
-
-        // Re-enable button after delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.testWidgetButton.isEnabled = true
-            self?.testStatusLabel.stringValue = NSLocalizedString("Test notification sent! Check for notification.", comment: "Status message")
-            self?.testStatusLabel.textColor = .systemGreen
-
-            // Reset status after additional delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
-                self?.testStatusLabel.stringValue = NSLocalizedString("Ready to test", comment: "Status label")
-                self?.testStatusLabel.textColor = Colors.secondaryLabel
-            }
+private extension TestNotificationStatus {
+    var localizedDescription: String {
+        switch self {
+        case .idle:
+            return ""
+        case .checkingPermissions:
+            return NSLocalizedString("Checking permissions...", comment: "Test status")
+        case .sending:
+            return NSLocalizedString("Sending test notification...", comment: "Test status")
+        case .waitingForInterception:
+            return NSLocalizedString("Waiting for interception...", comment: "Test status")
+        case .interceptedSuccessfully:
+            return NSLocalizedString("✓ Test notification intercepted successfully!", comment: "Test status")
+        case .notIntercepted:
+            return NSLocalizedString("✗ Test notification was not intercepted.", comment: "Test status")
+        case .permissionDenied:
+            return NSLocalizedString("✗ Notification permission denied.", comment: "Test status")
+        case .permissionError(let message):
+            return NSLocalizedString("✗ Permission error: \(message)", comment: "Test status")
+        case .sendingFailed(let message):
+            return NSLocalizedString("✗ Sending failed: \(message)", comment: "Test status")
+        case .unknownStatus:
+            return NSLocalizedString("✗ Unknown status", comment: "Test status")
         }
+    }
 
-        // Announce for accessibility
-        AccessibilityManager.shared.announce("Sending widget test notification to \(configurationManager.currentPosition.displayName)")
+    var color: NSColor {
+        switch self {
+        case .idle:
+            return .labelColor
+        case .checkingPermissions, .sending, .waitingForInterception:
+            return .systemBlue
+        case .interceptedSuccessfully:
+            return .systemGreen
+        case .notIntercepted, .permissionDenied, .permissionError, .sendingFailed, .unknownStatus:
+            return .systemRed
+        }
     }
 }

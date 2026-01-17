@@ -24,8 +24,6 @@
     <string>© 2026 Abdelraouf Sabri. All rights reserved.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
-    <key>LSUIElement</key>
-    <true/>
     <key>NSAccessibilityUsageDescription</key>
     <string>Notimanager requires accessibility permissions to detect and reposition notifications on your screen.</string>
     <key>NSUserNotificationAlertStyle</key>

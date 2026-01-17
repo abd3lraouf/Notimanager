@@ -37,14 +37,6 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
     private var enabledCheckboxRow: LiquidGlassCheckboxRow!
     private var hideMenuBarIconCheckboxRow: LiquidGlassCheckboxRow!
 
-    // Advanced Section
-    private var advancedSectionView: NSView!
-    private var debugModeCheckboxRow: LiquidGlassCheckboxRow!
-
-    // Tools Section
-    private var toolsSectionView: NSView!
-    private var buttonStackView: NSStackView!
-
     // Quit Section
     private var quitSectionView: NSView!
     private var quitButton: NSButton!
@@ -53,6 +45,7 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
 
     private let configurationManager: ConfigurationManager
     private let logger: LoggingService
+    private let toastManager = ToastNotificationManager.shared
 
     // MARK: - Lifecycle
 
@@ -95,14 +88,6 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         systemSectionView = createSystemSection()
         contentView.addSubview(systemSectionView)
 
-        // === Advanced Section ===
-        advancedSectionView = createAdvancedSection()
-        contentView.addSubview(advancedSectionView)
-
-        // === Tools Section ===
-        toolsSectionView = createToolsSection()
-        contentView.addSubview(toolsSectionView)
-
         // === Quit Section ===
         quitSectionView = createQuitSection()
         contentView.addSubview(quitSectionView)
@@ -115,18 +100,14 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         let containerView = NSView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
-        let header = SettingsSectionHeader(title: NSLocalizedString("System", comment: "Section header"))
+        let header = SettingsSectionHeader(title: NSLocalizedString("Startup & Menu", comment: "Section header"))
         containerView.addSubview(header)
-
-        let contentContainer = NSView()
-        contentContainer.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(contentContainer)
 
         // Launch at login - Using SwiftUI LaunchAtLogin.Toggle (requires macOS 13+)
         if #available(macOS 13.0, *) {
             launchAtLoginContainerView = NSView()
             launchAtLoginContainerView.translatesAutoresizingMaskIntoConstraints = false
-            contentContainer.addSubview(launchAtLoginContainerView)
+            containerView.addSubview(launchAtLoginContainerView)
 
             let checkboxView = LaunchAtLoginCheckbox()
             let hostingController = NSHostingController(rootView: checkboxView)
@@ -150,11 +131,11 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
             action: #selector(enabledClicked(_:)),
             target: self
         )
-        contentContainer.addSubview(enabledCheckboxRow)
+        containerView.addSubview(enabledCheckboxRow)
 
         // Add separator
         let separator = LiquidGlassSeparator()
-        contentContainer.addSubview(separator)
+        containerView.addSubview(separator)
 
         // Hide Menu Bar Icon
         hideMenuBarIconCheckboxRow = LiquidGlassCheckboxRow(
@@ -164,150 +145,47 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
             action: #selector(hideMenuBarIconClicked(_:)),
             target: self
         )
-        contentContainer.addSubview(hideMenuBarIconCheckboxRow)
+        containerView.addSubview(hideMenuBarIconCheckboxRow)
 
-        // Setup constraints for content
-        // If there's a launch at login view, pin enabled checkbox to it, otherwise pin to contentContainer top
+        // Setup constraints
+        var constraints: [NSLayoutConstraint] = [
+            // Header
+            header.topAnchor.constraint(equalTo: containerView.topAnchor),
+            header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32)
+        ]
+
+        // If there's a launch at login view, add its constraints
         if let launchView = launchAtLoginContainerView {
-            NSLayoutConstraint.activate([
-                launchView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-                launchView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-                launchView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            constraints += [
+                launchView.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt8),
+                launchView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+                launchView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
 
-                enabledCheckboxRow.topAnchor.constraint(equalTo: launchView.bottomAnchor, constant: Spacing.pt24),
-                enabledCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-                enabledCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor)
-            ])
+                enabledCheckboxRow.topAnchor.constraint(equalTo: launchView.bottomAnchor, constant: Spacing.pt12)
+            ]
         } else {
-            NSLayoutConstraint.activate([
-                enabledCheckboxRow.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-                enabledCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-                enabledCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor)
-            ])
+            constraints += [
+                enabledCheckboxRow.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt8)
+            ]
         }
 
-        NSLayoutConstraint.activate([
-            separator.topAnchor.constraint(equalTo: enabledCheckboxRow.bottomAnchor, constant: Spacing.pt24),
-            separator.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            separator.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor)
-        ])
+        // Continue with the rest of the constraints
+        constraints += [
+            enabledCheckboxRow.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            enabledCheckboxRow.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
 
-        NSLayoutConstraint.activate([
-            hideMenuBarIconCheckboxRow.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: Spacing.pt24),
-            hideMenuBarIconCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            hideMenuBarIconCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            hideMenuBarIconCheckboxRow.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
-        ])
+            separator.topAnchor.constraint(equalTo: enabledCheckboxRow.bottomAnchor, constant: Spacing.pt12),
+            separator.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            separator.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
 
-        // Setup container constraints
-        NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: containerView.topAnchor),
-            header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
-            header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+            hideMenuBarIconCheckboxRow.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: Spacing.pt12),
+            hideMenuBarIconCheckboxRow.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            hideMenuBarIconCheckboxRow.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+            hideMenuBarIconCheckboxRow.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -Spacing.pt16)
+        ]
 
-            contentContainer.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt16),
-            contentContainer.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
-            contentContainer.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
-            contentContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
-        ])
-
-        return containerView
-    }
-
-    private func createAdvancedSection() -> NSView {
-        let containerView = NSView()
-        containerView.translatesAutoresizingMaskIntoConstraints = false
-
-        let header = SettingsSectionHeader(title: NSLocalizedString("Advanced", comment: "Section header"))
-        containerView.addSubview(header)
-
-        let contentContainer = NSView()
-        contentContainer.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(contentContainer)
-
-        debugModeCheckboxRow = LiquidGlassCheckboxRow(
-            title: NSLocalizedString("Debug mode", comment: "Checkbox label"),
-            description: NSLocalizedString("Enable detailed logging for troubleshooting", comment: "Description text"),
-            initialState: .off,
-            action: #selector(debugModeClicked(_:)),
-            target: self
-        )
-        contentContainer.addSubview(debugModeCheckboxRow)
-
-        NSLayoutConstraint.activate([
-            debugModeCheckboxRow.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            debugModeCheckboxRow.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            debugModeCheckboxRow.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            debugModeCheckboxRow.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
-        ])
-
-        NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: containerView.topAnchor),
-            header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
-            header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
-
-            contentContainer.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt16),
-            contentContainer.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
-            contentContainer.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
-            contentContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
-        ])
-
-        return containerView
-    }
-
-    private func createToolsSection() -> NSView {
-        let containerView = NSView()
-        containerView.translatesAutoresizingMaskIntoConstraints = false
-
-        let header = SettingsSectionHeader(title: NSLocalizedString("Tools", comment: "Section header"))
-        containerView.addSubview(header)
-
-        let contentContainer = NSView()
-        contentContainer.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(contentContainer)
-
-        // Create button stack for better alignment
-        buttonStackView = NSStackView()
-        buttonStackView.orientation = .horizontal
-        buttonStackView.spacing = Spacing.pt12
-        buttonStackView.distribution = .fillEqually
-        buttonStackView.translatesAutoresizingMaskIntoConstraints = false
-        contentContainer.addSubview(buttonStackView)
-
-        // Diagnostics button
-        diagnosticsButton = createActionButton(
-            title: NSLocalizedString("Open Diagnostics…", comment: "Button label"),
-            action: #selector(diagnosticsClicked(_:)),
-            isPrimary: true
-        )
-        buttonStackView.addArrangedSubview(diagnosticsButton)
-
-        // Permissions button
-        permissionsButton = createActionButton(
-            title: NSLocalizedString("Permissions…", comment: "Button label"),
-            action: #selector(permissionsClicked(_:)),
-            isPrimary: false
-        )
-        buttonStackView.addArrangedSubview(permissionsButton)
-
-        NSLayoutConstraint.activate([
-            buttonStackView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            buttonStackView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            buttonStackView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            buttonStackView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-            buttonStackView.heightAnchor.constraint(equalToConstant: Layout.regularButtonHeight)
-        ])
-
-        NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: containerView.topAnchor),
-            header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
-            header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
-
-            contentContainer.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt16),
-            contentContainer.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
-            contentContainer.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
-            contentContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
-        ])
+        NSLayoutConstraint.activate(constraints)
 
         return containerView
     }
@@ -375,45 +253,27 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         return containerView
     }
 
-    private var diagnosticsButton: NSButton!
-    private var permissionsButton: NSButton!
-
     private func setupConstraints() {
         var constraints: [NSLayoutConstraint] = []
 
         // Content view width constraint (minimum width for proper layout)
         constraints += [
-            contentView.widthAnchor.constraint(equalToConstant: Layout.settingsWindowWidth),
-            contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 500)
+            contentView.widthAnchor.constraint(equalToConstant: Layout.settingsWindowWidth)
         ]
 
         // System Section
         constraints += [
-            systemSectionView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: Spacing.pt24),
+            systemSectionView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: Spacing.pt16),
             systemSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             systemSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
         ]
 
-        // Advanced Section
-        constraints += [
-            advancedSectionView.topAnchor.constraint(equalTo: systemSectionView.bottomAnchor, constant: Spacing.pt32),
-            advancedSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            advancedSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
-        ]
-
-        // Tools Section
-        constraints += [
-            toolsSectionView.topAnchor.constraint(equalTo: advancedSectionView.bottomAnchor, constant: Spacing.pt32),
-            toolsSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            toolsSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
-        ]
-
         // Quit Section
         constraints += [
-            quitSectionView.topAnchor.constraint(equalTo: toolsSectionView.bottomAnchor, constant: Spacing.pt32),
+            quitSectionView.topAnchor.constraint(equalTo: systemSectionView.bottomAnchor, constant: Spacing.pt20),
             quitSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             quitSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            quitSectionView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -Spacing.pt32)
+            quitSectionView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -Spacing.pt24)
         ]
 
         NSLayoutConstraint.activate(constraints)
@@ -421,7 +281,7 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        preferredContentSize = NSSize(width: Layout.settingsWindowWidth, height: 500)
+        preferredContentSize = NSSize(width: Layout.settingsWindowWidth, height: 300)
         populateSettings()
     }
 
@@ -459,10 +319,6 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         // Hide menu bar icon
         let isIconHidden = configurationManager.isMenuBarIconHidden
         hideMenuBarIconCheckboxRow.checkboxButton.state = isIconHidden ? .on : .off
-
-        // Debug mode
-        let isDebug = configurationManager.debugMode
-        debugModeCheckboxRow.checkboxButton.state = isDebug ? .on : .off
     }
 
     // MARK: - Actions
@@ -471,6 +327,15 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         let isEnabled = sender.state == .on
         configurationManager.isEnabled = isEnabled
         logger.log("Notification positioning \(isEnabled ? "enabled" : "disabled")")
+
+        // Show toast notification on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let message = isEnabled
+                ? NSLocalizedString("Notification positioning is now active.", comment: "Toast message")
+                : NSLocalizedString("Notification positioning is now inactive.", comment: "Toast message")
+            self.toastManager.showSuccess(NSLocalizedString("Positioning Enabled", comment: "Toast title"), message: message)
+        }
     }
 
     @objc func hideMenuBarIconClicked(_ sender: NSButton) {
@@ -495,6 +360,9 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
                 configurationManager.isMenuBarIconHidden = true
                 logger.log("Menu bar icon hidden")
                 AccessibilityManager.shared.announce("Menu bar icon hidden")
+                DispatchQueue.main.async { [weak self] in
+                    self?.toastManager.showInfo(NSLocalizedString("Menu Bar Icon Hidden", comment: "Toast title"), message: NSLocalizedString("Access settings from Launchpad or Applications.", comment: "Toast message"))
+                }
             } else {
                 // User cancelled - revert checkbox
                 sender.state = .off
@@ -504,23 +372,10 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
             configurationManager.isMenuBarIconHidden = false
             logger.log("Menu bar icon shown")
             AccessibilityManager.shared.announce("Menu bar icon shown")
+            DispatchQueue.main.async { [weak self] in
+                self?.toastManager.showSuccess(NSLocalizedString("Menu Bar Icon Visible", comment: "Toast title"))
+            }
         }
-    }
-
-    @objc func debugModeClicked(_ sender: NSButton) {
-        let isDebug = sender.state == .on
-        configurationManager.debugMode = isDebug
-        logger.log("Debug mode \(isDebug ? "enabled" : "disabled")")
-    }
-
-    @objc func diagnosticsClicked(_ sender: NSButton) {
-        logger.log("Opening diagnostics window")
-        NotificationMover.shared.coordinator.showDiagnostics()
-    }
-
-    @objc func permissionsClicked(_ sender: NSButton) {
-        logger.log("Opening accessibility permissions window")
-        NotificationMover.shared.coordinator.showPermissionWindowFromSettings()
     }
 
     @objc func quitButtonClicked(_ sender: NSButton) {
