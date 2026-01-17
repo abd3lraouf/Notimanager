@@ -209,6 +209,104 @@ class TestNotificationService {
         }
     }
 
+    /// Sends a widget-style test notification with meaningful content
+    /// Simulates a notification that might come from a widget
+    /// - Parameters:
+    ///   - position: The target position for the notification
+    ///   - delay: Delay before sending (default: 0.5 seconds for snappier response)
+    func sendWidgetTestNotification(to position: NotificationPosition? = nil, delay: TimeInterval = 0.5) {
+        let targetPosition = position ?? ConfigurationManager.shared.currentPosition
+        let positionName = targetPosition.displayName
+        let direction = getDirectionForPosition(targetPosition)
+
+        logger.debug("Sending widget test notification to \(positionName)...")
+
+        // Reset tracking
+        notificationWasIntercepted = false
+        lastNotificationTime = Date()
+
+        // Update status
+        currentStatus = .sending
+
+        // Create rich, widget-style notification content
+        let content = UNMutableNotificationContent()
+
+        // Title with widget indicator
+        content.title = "Widget Update"
+
+        // Body with position and meaningful dummy content
+        content.body = """
+        \(direction): \(positionName)
+
+        Weather Widget
+        ——————————————
+
+        Sunny • 72°F
+
+        Your afternoon forecast looks great!
+        Perfect conditions for a walk.
+
+        Notimanager successfully moved this widget notification → \(positionName)
+        """
+
+        // Add category for widget interactions (if supported)
+        content.categoryIdentifier = "WIDGET_UPDATE"
+
+        // Add subtle sound
+        content.sound = .default
+
+        // Add thread identifier for grouping
+        content.threadIdentifier = "com.notimanager.widget-updates"
+
+        // Create trigger with short delay
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "widget-test-\(UUID().uuidString)",
+            content: content,
+            trigger: trigger
+        )
+
+        // Send the notification
+        notificationCenter.add(request) { [weak self] error in
+            guard let self = self else { return }
+
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.logger.debug("Failed to send widget test notification: \(error)")
+                    self.currentStatus = .sendingFailed("Failed to send widget notification")
+                    self.delegate?.testNotificationDidFail(error: error)
+                } else {
+                    self.logger.debug("Widget test notification sent successfully")
+                    self.currentStatus = .waitingForInterception
+                    self.delegate?.testNotificationDidSend()
+
+                    // Check after delay if it was intercepted
+                    DispatchQueue.main.asyncAfter(
+                        deadline: .now() + self.interceptionCheckDelay
+                    ) { [weak self] in
+                        self?.checkInterceptionStatus()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Returns a directional description for a position
+    /// - Parameter position: The notification position
+    /// - Returns: Direction string (e.g., "↑ Top Right", "↓ Bottom Left")
+    private func getDirectionForPosition(_ position: NotificationPosition) -> String {
+        switch position {
+        case .topLeft:
+            return "↖ Top Left"
+        case .topRight:
+            return "↗ Top Right"
+        case .bottomLeft:
+            return "↙ Bottom Left"
+        case .bottomRight:
+            return "↘ Bottom Right"
+        }
+    }
+
     /// Checks if a notification should be counted as test notification interception
     /// - Parameters:
     ///   - windowSize: The size of the notification window

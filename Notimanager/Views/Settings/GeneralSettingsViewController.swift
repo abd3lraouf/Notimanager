@@ -45,6 +45,10 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
     private var toolsSectionView: NSView!
     private var buttonStackView: NSStackView!
 
+    // Quit Section
+    private var quitSectionView: NSView!
+    private var quitButton: NSButton!
+
     // MARK: - Properties
 
     private let configurationManager: ConfigurationManager
@@ -98,6 +102,10 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         // === Tools Section ===
         toolsSectionView = createToolsSection()
         contentView.addSubview(toolsSectionView)
+
+        // === Quit Section ===
+        quitSectionView = createQuitSection()
+        contentView.addSubview(quitSectionView)
 
         // === Constraints ===
         setupConstraints()
@@ -304,6 +312,69 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         return containerView
     }
 
+    private func createQuitSection() -> NSView {
+        let containerView = NSView()
+        containerView.translatesAutoresizingMaskIntoConstraints = false
+
+        let header = SettingsSectionHeader(title: NSLocalizedString("Application", comment: "Section header"))
+        containerView.addSubview(header)
+
+        let contentContainer = NSView()
+        contentContainer.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(contentContainer)
+
+        // Quit button with destructive styling
+        quitButton = NSButton()
+        quitButton.title = NSLocalizedString("Quit Notimanager", comment: "Button label")
+        quitButton.target = self
+        quitButton.action = #selector(quitButtonClicked(_:))
+        quitButton.translatesAutoresizingMaskIntoConstraints = false
+
+        if #available(macOS 10.14, *) {
+            quitButton.bezelStyle = .rounded
+        } else {
+            quitButton.bezelStyle = .rounded
+        }
+
+        quitButton.font = Typography.body
+
+        // Use semantic color for destructive action (but not full destructive style to maintain visual consistency)
+        quitButton.contentTintColor = .systemRed
+
+        quitButton.sizeToFit()
+
+        // Accessibility - mark as destructive action
+        quitButton.setAccessibilityTitle(NSLocalizedString("Quit Notimanager", comment: "Button accessibility title"))
+        quitButton.setAccessibilityHelp(NSLocalizedString("Completely quit the Notimanager application", comment: "Button accessibility help"))
+        quitButton.setAccessibilityRole(.button)
+        quitButton.setAccessibilityIdentifier("settingsQuitButton")
+
+        contentContainer.addSubview(quitButton)
+
+        // Setup constraints for content
+        NSLayoutConstraint.activate([
+            quitButton.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            quitButton.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            quitButton.trailingAnchor.constraint(lessThanOrEqualTo: contentContainer.trailingAnchor),
+            quitButton.heightAnchor.constraint(equalToConstant: Layout.regularButtonHeight),
+            quitButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
+        ])
+
+        // Setup container constraints
+        NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: containerView.topAnchor),
+            header.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            header.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+
+            contentContainer.topAnchor.constraint(equalTo: header.bottomAnchor, constant: Spacing.pt16),
+            contentContainer.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: Spacing.pt32),
+            contentContainer.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -Spacing.pt32),
+            contentContainer.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+        ])
+
+        return containerView
+    }
+
     private var diagnosticsButton: NSButton!
     private var permissionsButton: NSButton!
 
@@ -334,8 +405,15 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
         constraints += [
             toolsSectionView.topAnchor.constraint(equalTo: advancedSectionView.bottomAnchor, constant: Spacing.pt32),
             toolsSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            toolsSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            toolsSectionView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -Spacing.pt32)
+            toolsSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+        ]
+
+        // Quit Section
+        constraints += [
+            quitSectionView.topAnchor.constraint(equalTo: toolsSectionView.bottomAnchor, constant: Spacing.pt32),
+            quitSectionView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            quitSectionView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            quitSectionView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -Spacing.pt32)
         ]
 
         NSLayoutConstraint.activate(constraints)
@@ -443,5 +521,36 @@ final class GeneralSettingsViewController: NSViewController, SettingsPane {
     @objc func permissionsClicked(_ sender: NSButton) {
         logger.log("Opening accessibility permissions window")
         NotificationMover.shared.coordinator.showPermissionWindowFromSettings()
+    }
+
+    @objc func quitButtonClicked(_ sender: NSButton) {
+        logger.log("Quit button clicked")
+
+        // Show confirmation alert
+        let alert = NSAlert()
+        alert.messageText = NSLocalizedString("Quit Notimanager?", comment: "Alert title")
+        alert.informativeText = NSLocalizedString(
+            "This will completely quit Notimanager. Notification positioning will stop working until you relaunch the app.",
+            comment: "Alert message"
+        )
+        alert.addButton(withTitle: NSLocalizedString("Quit Notimanager", comment: "Button title"))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Button title"))
+        alert.alertStyle = .critical
+
+        let response = alert.runModal()
+
+        if response == .alertFirstButtonReturn {
+            // User confirmed - quit the application
+            logger.log("User confirmed quit - terminating application")
+            AccessibilityManager.shared.announce("Quitting Notimanager")
+
+            // Close settings window first
+            if let window = self.view.window {
+                window.close()
+            }
+
+            // Terminate the application
+            NSApplication.shared.terminate(nil)
+        }
     }
 }

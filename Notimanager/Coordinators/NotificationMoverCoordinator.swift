@@ -46,11 +46,12 @@ final class NotificationMoverCoordinator: NSObject {
     /// Lazy loaded settings window controller using the Settings framework
     private lazy var settingsWindowController: SettingsWindowController = {
         let generalPane = GeneralSettingsViewController()
+        let interceptionPane = InterceptionSettingsViewController()
         let positionPane = PositionSettingsViewController()
         let aboutPane = AboutSettingsViewController()
 
         let controller = SettingsWindowController(
-            panes: [generalPane, positionPane, aboutPane],
+            panes: [generalPane, interceptionPane, positionPane, aboutPane],
             style: settingsPaneStyle,
             animated: true
         )
