@@ -41,10 +41,10 @@ struct BlipIconView: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
             .fill(color.color)
-            .frame(width: 32, height: 32)
+            .frame(width: 28, height: 28)
             .overlay {
                 Image(systemName: systemName)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.white)
             }
     }
@@ -61,7 +61,14 @@ struct BlipToggleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            BlipIconView(systemName: systemName, color: color)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(color.color.opacity(0.2))
+                .frame(width: 28, height: 28)
+                .overlay {
+                    Image(systemName: systemName)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(color.color)
+                }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -81,8 +88,8 @@ struct BlipToggleRow: View {
                 .toggleStyle(.switch)
                 .labelsHidden()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
         .accessibilityValue(isOn ? "On" : "Off")
@@ -95,8 +102,9 @@ struct BlipActionRow: View {
     let systemName: String
     let color: BlipIconColor
     let title: String
-    let subtitle: String
+    let subtitle: String?
     let buttonTitle: String
+    var buttonIcon: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -106,6 +114,115 @@ struct BlipActionRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 14))
+                    .foregroundStyle(.primary)
+
+                if let subtitle = subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Text(buttonTitle)
+                        .font(.system(size: 13, weight: .medium))
+
+                    if let buttonIcon = buttonIcon {
+                        Image(systemName: buttonIcon)
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(red: 0xF5/255.0, green: 0xF5/255.0, blue: 0xF5/255.0))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Blip Settings Row (Help)
+
+struct BlipHelpRow: View {
+    let service: String
+    let handle: String
+    let buttonTitle: String
+    var buttonIcon: String? = nil
+    var iconImage: String? = nil
+    let action: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Custom brand icon or fallback
+            if let imageName = iconImage, let uiImage = NSImage(named: imageName) {
+                Image(nsImage: uiImage)
+                    .resizable()
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            } else {
+                BlipIconView(systemName: "questionmark.circle", color: .blue)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(service)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                
+                Text(handle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Text(buttonTitle)
+                        .font(.system(size: 13, weight: .medium))
+                    
+                    if let buttonIcon = buttonIcon {
+                        Image(systemName: buttonIcon)
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(red: 0xF5/255.0, green: 0xF5/255.0, blue: 0xF5/255.0))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Blip Settings Row (Info)
+
+struct BlipInfoRow: View {
+    let systemName: String
+    let color: BlipIconColor
+    let title: String
+    let subtitle: String
+    let buttonTitle: String
+    var disabled: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            BlipIconView(systemName: systemName, color: color)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.primary)
 
                 Text(subtitle)
@@ -121,13 +238,14 @@ struct BlipActionRow: View {
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color(red: 0xF5/255.0, green: 0xF5/255.0, blue: 0xF7/255.0))
+                    .background(.quaternary)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
+            .disabled(disabled)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 }
 
@@ -138,7 +256,53 @@ struct BlipSeparator: View {
         Rectangle()
             .fill(Color(red: 0xE5/255.0, green: 0xE5/255.0, blue: 0xE5/255.0))
             .frame(height: 1)
-            .padding(.leading, 60) // Aligns with text, not icon
+            .padding(.leading, 52) // Aligns with text (28pt icon + 12pt spacing + 14pt left padding - adjusted)
+    }
+}
+
+// MARK: - Blip Settings Row (Picker)
+
+struct BlipPickerRow<T: Hashable & CaseIterable>: View where T.AllCases: RandomAccessCollection {
+    let systemName: String
+    let color: BlipIconColor
+    let title: String
+    var subtitle: String?
+    @Binding var selection: T
+    let displayValue: (T) -> String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            BlipIconView(systemName: systemName, color: color)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.primary)
+
+                if let subtitle = subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            Picker("", selection: $selection) {
+                ForEach(T.allCases, id: \.self) { option in
+                    Text(displayValue(option))
+                        .tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 140)
+            .labelsHidden()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(displayValue(selection))
     }
 }
 
@@ -155,9 +319,11 @@ struct BlipCard<Content: View>: View {
         VStack(spacing: 0) {
             content
         }
-        .background(.white)
+        .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.black.opacity(0.08), lineWidth: 0.5)
+        )
     }
 }
