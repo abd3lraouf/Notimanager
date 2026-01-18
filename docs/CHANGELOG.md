@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
+## [2.0.3] - 2026-01-18
+
+### 🔧 Improvements
+- **Appcast Hosting**: Migrated from GitHub Pages to GitHub Releases
+  - Updated SUFeedURL to use GitHub Releases download endpoint
+  - Removed GitHub Pages deployment workflow
+  - Simplified release infrastructure by hosting appcast.xml directly in releases
+
 ## [2.0.2] - 2026-01-18
 
 ### 🐛 Fixed
