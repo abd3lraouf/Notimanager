@@ -3,10 +3,12 @@
 //  Notimanager
 //
 //  Created on 2025-01-15.
-//  Central coordinator for managing all view controllers and windows
+//  Central coordinator for managing all view controllers and windows.
+//  Updated to use SwiftUI views with robust lifecycle management.
 //
 
 import Cocoa
+import SwiftUI
 
 /// Central coordinator for managing app UI
 class UICoordinator: NSObject {
@@ -22,9 +24,9 @@ class UICoordinator: NSObject {
 
     // MARK: - Properties
 
-    private var permissionViewController: PermissionViewController?
-    private var diagnosticViewController: DiagnosticViewController?
-    private var aboutViewController: AboutViewController?
+    private var permissionWindow: NSWindow?
+    private var diagnosticWindow: NSWindow?
+    private var logViewerWindow: NSWindow?
 
     // MARK: - Public Methods
 
@@ -35,39 +37,93 @@ class UICoordinator: NSObject {
         NotificationMover.shared.showSettings()
     }
 
-    /// Show the permission window
+    /// Show the permission window using SwiftUI
     func showPermissionWindow() {
-        if permissionViewController == nil {
+        if permissionWindow == nil {
             let viewModel = PermissionViewModel()
-            permissionViewController = PermissionViewController(viewModel: viewModel)
+            let contentView = PermissionView(viewModel: viewModel)
+
+            let hostingController = NSHostingController(rootView: contentView)
+
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 480, height: 620),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "Notimanager"
+            window.titlebarAppearsTransparent = false
+            window.isMovableByWindowBackground = true
+            window.contentViewController = hostingController
+            window.delegate = self
+            window.isReleasedWhenClosed = false // Important: we manage lifecycle manually
+
+            permissionWindow = window
         }
 
-        permissionViewController?.showInWindow()
+        permissionWindow?.center()
+        permissionWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Show the diagnostic window
+    /// Show the diagnostic window using SwiftUI
     func showDiagnostics() {
-        if diagnosticViewController == nil {
+        if diagnosticWindow == nil {
             let viewModel = DiagnosticViewModel()
-            diagnosticViewController = DiagnosticViewController(viewModel: viewModel)
+            let contentView = DiagnosticView(viewModel: viewModel)
+
+            let hostingController = NSHostingController(rootView: contentView)
+
+            let osVersion = ProcessInfo.processInfo.operatingSystemVersion
+
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 800, height: 750),
+                styleMask: [.titled, .closable, .resizable, .miniaturizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "API Diagnostics - macOS \(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)"
+            window.contentViewController = hostingController
+            window.delegate = self
+            window.isReleasedWhenClosed = false // Important: we manage lifecycle manually
+
+            diagnosticWindow = window
         }
 
-        diagnosticViewController?.showInWindow()
+        diagnosticWindow?.center()
+        diagnosticWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Show the log viewer window using SwiftUI
+    func showLogViewer() {
+        if logViewerWindow == nil {
+            let contentView = LogViewerView()
+            let hostingController = NSHostingController(rootView: contentView)
+            
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+                styleMask: [.titled, .closable, .resizable, .miniaturizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "Log Viewer"
+            window.contentViewController = hostingController
+            window.delegate = self
+            window.isReleasedWhenClosed = false
+            window.minSize = NSSize(width: 700, height: 400)
+            
+            logViewerWindow = window
+        }
+        
+        logViewerWindow?.center()
+        logViewerWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     /// Show the permission window (called from coordinator)
     func showPermissionWindowFromCoordinator() {
         showPermissionWindow()
-    }
-
-    /// Show the about window
-    func showAbout() {
-        if aboutViewController == nil {
-            let viewModel = AboutViewModel()
-            aboutViewController = AboutViewController(viewModel: viewModel)
-        }
-
-        aboutViewController?.showInWindow()
     }
 
     /// Check if accessibility permission is granted and show window if needed
@@ -84,10 +140,11 @@ class UICoordinator: NSObject {
 
     /// Close all windows
     func closeAllWindows() {
-        // Note: ViewControllers manage their own windows lifecycle
-        permissionViewController = nil
-        diagnosticViewController = nil
-        aboutViewController = nil
+        permissionWindow?.close()
+        permissionWindow?.close()
+        diagnosticWindow?.close()
+        logViewerWindow?.close()
+        // References cleared in windowWillClose delegate
     }
 
     // MARK: - Notification Observers
@@ -152,6 +209,41 @@ class UICoordinator: NSObject {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+// MARK: - NSWindowDelegate
+
+extension UICoordinator: NSWindowDelegate {
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        // For permission window, if permission is NOT granted, hide instead of close
+        if sender === permissionWindow {
+            if !AXIsProcessTrusted() {
+                sender.orderOut(nil)
+                return false
+            }
+        }
+        
+        return true
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        // Clean up window references AFTER close animation completes
+        // CRITICAL: Use async to prevent deallocating window while it is still in the middle of closing
+        // This avoids EXC_BAD_ACCESS in autorelease pool drain
+        guard let window = notification.object as? NSWindow else { return }
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            if window === self.permissionWindow {
+                self.permissionWindow = nil
+            } else if window === self.diagnosticWindow {
+                self.diagnosticWindow = nil
+            } else if window === self.logViewerWindow {
+                self.logViewerWindow = nil
+            }
+        }
     }
 }
 

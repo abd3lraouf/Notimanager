@@ -9,7 +9,6 @@
 
 import AppKit
 import Foundation
-import Settings
 import UserNotifications
 
 /// Main coordinator for the Notimanager application.
@@ -26,38 +25,10 @@ final class NotificationMoverCoordinator: NSObject {
     private let windowMonitor: WindowMonitorService
     private let widgetMonitor: WidgetMonitorService
     private let logger: LoggingService
-    private let menuBarManager: MenuBarManager
 
     // MARK: - UI Components
 
     // Permission window is now managed by UICoordinator
-
-    // MARK: - Settings Window Controller (Settings Framework)
-
-    /// Returns the appropriate settings style based on macOS version
-    private var settingsPaneStyle: Settings.Style {
-        if #available(macOS 11.0, *) {
-            return .toolbarItems
-        } else {
-            return .segmentedControl
-        }
-    }
-
-    /// Lazy loaded settings window controller using the Settings framework
-    private lazy var settingsWindowController: SettingsWindowController = {
-        let generalPane = GeneralSettingsViewController()
-        let interceptionPane = InterceptionSettingsViewController()
-        let advancedPane = AdvancedSettingsViewController()
-        let aboutPane = AboutSettingsViewController()
-
-        let controller = SettingsWindowController(
-            panes: [generalPane, interceptionPane, advancedPane, aboutPane],
-            style: settingsPaneStyle,
-            animated: true
-        )
-        controller.windowFrameAutosaveName = "NotimanagerSettingsV2"
-        return controller
-    }()
 
     // MARK: - Initialization
 
@@ -68,8 +39,7 @@ final class NotificationMoverCoordinator: NSObject {
         positioningService: NotificationPositioningService = .shared,
         windowMonitor: WindowMonitorService = .shared,
         widgetMonitor: WidgetMonitorService = .shared,
-        logger: LoggingService = .shared,
-        menuBarManager: MenuBarManager? = nil
+        logger: LoggingService = .shared
     ) {
         self.configurationManager = configurationManager
         self.accessibilityManager = accessibilityManager
@@ -79,10 +49,6 @@ final class NotificationMoverCoordinator: NSObject {
         self.widgetMonitor = widgetMonitor
         self.logger = logger
 
-        // Create menu bar manager
-        let menuBarMgr = menuBarManager ?? MenuBarManager()
-        self.menuBarManager = menuBarMgr
-
         super.init()
 
         // Set up monitor delegates
@@ -90,9 +56,6 @@ final class NotificationMoverCoordinator: NSObject {
 
         // Set up configuration observers
         setupConfigurationObservers()
-
-        // Set up menu bar manager coordinator reference (after super.init)
-        menuBarMgr.setCoordinator(self)
     }
 
     // MARK: - Setup
@@ -110,8 +73,13 @@ final class NotificationMoverCoordinator: NSObject {
 
     /// Application finished launching - entry point
     func applicationDidFinishLaunching(_ notification: Notification) {
+        logger.debug("ApplicationDidFinishLaunching called", category: "Coordinator")
+
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
+
+        // Initialize MenuBarManager first (sets up NSStatusItem based on saved preference)
+
 
         logSystemInfo()
         requestNotificationPermissions()
@@ -126,9 +94,6 @@ final class NotificationMoverCoordinator: NSObject {
             self?.checkAccessibilityPermissions()
         }
 
-        // Setup menu bar - visibility is controlled by isVisible property
-        menuBarManager.setup()
-
         // Observe app activation to restore menu bar icon when hidden
         NotificationCenter.default.addObserver(
             self,
@@ -141,9 +106,9 @@ final class NotificationMoverCoordinator: NSObject {
     /// Application is about to become active
     /// When launched from Launchpad/Applications while icon is hidden, open Settings but keep icon hidden
     @objc func applicationDidBecomeActive(_ notification: Notification) {
-        // If the status item is currently hidden, open Settings but keep it hidden
+        // If the status icon is currently hidden, open Settings but keep it hidden
         // This allows users to access the app when launching from Launchpad, Applications, or Xcode
-        if !menuBarManager.isVisible {
+        if configurationManager.isMenuBarIconHidden && configurationManager.openSettingsAtLaunch {
             logger.info("Status icon hidden on app activation - opening Settings")
 
             // Open Settings window so user can access the app
@@ -164,26 +129,29 @@ final class NotificationMoverCoordinator: NSObject {
     // MARK: - Permission Management
 
     private func checkAccessibilityPermissions() {
+        logger.debug("Checking accessibility permissions...", category: "Coordinator")
         let isGranted = permissionService.checkPermissions()
 
-        logger.info("Accessibility permission check: \(isGranted ? "granted" : "denied")")
+        logger.info("Accessibility permission check: \(isGranted ? "granted" : "denied")", category: "Coordinator")
 
         if isGranted {
+            logger.debug("Permissions granted, starting services", category: "Coordinator")
             startAllServices()
             moveAllNotifications()
         } else {
+            logger.debug("Permissions denied, showing permission window", category: "Coordinator")
             showPermissionWindow()
         }
     }
 
     private func requestNotificationPermissions() {
-        logger.info("Requesting notification permissions...")
+        logger.debug("Requesting notification permissions...", category: "Coordinator")
 
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
             if let error = error {
-                self?.logger.error("Error requesting notification permissions: \(error)")
+                self?.logger.error("Error requesting notification permissions: \(error)", category: "Coordinator")
             } else {
-                self?.logger.info("Notification permissions granted: \(granted)")
+                self?.logger.info("Notification permissions granted: \(granted)", category: "Coordinator")
             }
         }
     }
@@ -191,24 +159,28 @@ final class NotificationMoverCoordinator: NSObject {
     // MARK: - Service Coordination
 
     private func startAllServices() {
-        logger.info("Starting all services...")
+        logger.info("Starting all services...", category: "Coordinator")
+        logger.debug("isEnabled: \(configurationManager.isEnabled)", category: "Coordinator")
 
         // Start monitoring
         if configurationManager.isEnabled {
             windowMonitor.startMonitoring()
             widgetMonitor.startMonitoring()
+            logger.debug("Window and Widget monitors started", category: "Coordinator")
+        } else {
+            logger.debug("Not starting monitors - positioning is disabled", category: "Coordinator")
         }
 
-        logger.info("All services started")
+        logger.info("All services started", category: "Coordinator")
     }
 
     private func stopAllServices() {
-        logger.info("Stopping all services...")
+        logger.info("Stopping all services...", category: "Coordinator")
 
         windowMonitor.stopMonitoring()
         widgetMonitor.stopMonitoring()
 
-        logger.info("All services stopped")
+        logger.info("All services stopped", category: "Coordinator")
     }
 
     // MARK: - UI Coordination
@@ -249,7 +221,6 @@ final class NotificationMoverCoordinator: NSObject {
         case .positionChanged:
             logger.info("Position changed to \(configurationManager.currentPosition.displayName)")
             moveAllNotifications()
-            menuBarManager.rebuildMenu()
 
         case .enabledChanged:
             logger.info("Enabled changed to \(configurationManager.isEnabled)")
@@ -258,43 +229,38 @@ final class NotificationMoverCoordinator: NSObject {
             } else {
                 stopAllServices()
             }
-            menuBarManager.rebuildMenu()
 
         case .debugModeChanged:
             logger.info("Debug mode changed to \(configurationManager.debugMode)")
             // Logging service automatically updates via observer
-            menuBarManager.rebuildMenu()
 
         case .menuBarIconChanged:
             logger.info("Menu bar icon visibility changed")
-            // Update the isVisible property which will handle showing/hiding
-            menuBarManager.isVisible = !configurationManager.isMenuBarIconHidden
 
         case .interceptionChanged:
             logger.info("Interception settings changed")
             // Update monitoring based on new interception settings
-            if configurationManager.isEnabled {
-                // Update window monitoring (only for normal notifications now)
-                if configurationManager.interceptNotifications {
-                    windowMonitor.startMonitoring()
-                } else {
-                    windowMonitor.stopMonitoring()
-                }
-
-                // Update widget monitoring
-                if configurationManager.interceptWidgets {
-                    widgetMonitor.startMonitoring()
-                } else {
-                    widgetMonitor.stopMonitoring()
-                }
-
-                logger.info("Window monitoring: \(configurationManager.interceptNotifications ? "active" : "inactive"), Widget monitoring: \(configurationManager.interceptWidgets ? "active" : "inactive")")
+            // Only start monitors if master switch is enabled AND the specific interception flag is enabled
+            
+            // Handle window monitoring (normal notifications)
+            if configurationManager.isEnabled && configurationManager.interceptNotifications {
+                windowMonitor.startMonitoring()
+            } else {
+                windowMonitor.stopMonitoring()
             }
+
+            // Handle widget monitoring
+            if configurationManager.isEnabled && configurationManager.interceptWidgets {
+                widgetMonitor.startMonitoring()
+            } else {
+                widgetMonitor.stopMonitoring()
+            }
+
+            logger.info("Window monitoring: \(configurationManager.interceptNotifications ? "active" : "inactive"), Widget monitoring: \(configurationManager.interceptWidgets ? "active" : "inactive")")
 
         case .reset:
             logger.info("Configuration reset to defaults")
             moveAllNotifications()
-            menuBarManager.rebuildMenu()
         }
     }
 
@@ -317,6 +283,35 @@ final class NotificationMoverCoordinator: NSObject {
                 self?.logger.error("Error sending test notification: \(error)")
             } else {
                 self?.logger.info("Test notification sent")
+            }
+        }
+    }
+
+    private func sendDelayedTestNotification() {
+        // Delay for 1 second to allow any visible notification to dismiss
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.sendPositionTestNotification()
+        }
+    }
+
+    private func sendPositionTestNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Position Changed"
+        let positionName = configurationManager.currentPosition.displayName
+        content.body = "Notifications will now appear at the \(positionName)"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "position-test-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error = error {
+                self?.logger.error("Error sending position test notification: \(error)")
+            } else {
+                self?.logger.info("Position test notification sent to \(positionName)")
             }
         }
     }
@@ -410,9 +405,7 @@ extension NotificationMoverCoordinator: CoordinatorAction {
     func updatePosition(to position: NotificationPosition) {
         configurationManager.currentPosition = position
         // Donate activity for Siri Suggestions
-        if #available(macOS 10.15, *) {
-            ActivityManager.shared.donateChangePositionActivity(to: position)
-        }
+        ActivityManager.shared.donateChangePositionActivity(to: position)
     }
 
     func showPermissionWindowFromSettings() {
@@ -426,17 +419,15 @@ extension NotificationMoverCoordinator: CoordinatorAction {
     // MARK: - Menu Actions
 
     func showSettings() {
-        settingsWindowController.show()
-        NSApp.activate(ignoringOtherApps: true)
-        // Donate activity for Siri Suggestions
-        if #available(macOS 10.15, *) {
-            ActivityManager.shared.donateSettingsActivity()
+        // Use native Settings/Preferences window mechanism
+        if #available(macOS 13.0, *) {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        } else {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
-    }
-
-    func showSettings(pane: Settings.PaneIdentifier) {
-        settingsWindowController.show(pane: pane)
+        
         NSApp.activate(ignoringOtherApps: true)
+        
         // Donate activity for Siri Suggestions
         if #available(macOS 10.15, *) {
             ActivityManager.shared.donateSettingsActivity()

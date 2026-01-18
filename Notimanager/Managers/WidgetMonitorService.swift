@@ -142,6 +142,13 @@ class WidgetMonitorService {
 
     /// Checks for widget state changes
     private func checkForWidgetChanges() {
+        // Check if widget interception is enabled
+        guard ConfigurationManager.shared.interceptWidgets else {
+            // Widget interception is disabled, stop monitoring
+            stopMonitoring()
+            return
+        }
+        
         guard let pollingEnd = pollingEndTime, Date() < pollingEnd else {
             // Stop polling when time expires
             stopMonitoring()

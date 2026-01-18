@@ -210,6 +210,47 @@ class TestNotificationService {
         }
     }
 
+    /// Sends a simulated notification with custom details
+    /// - Parameters:
+    ///   - title: Notification title (simulating app name)
+    ///   - subtitle: Notification subtitle
+    ///   - body: Notification body
+    ///   - threadID: Thread identifier for grouping
+    ///   - delay: Delay before sending
+    func sendSimulatedNotification(
+        title: String,
+        subtitle: String,
+        body: String,
+        threadID: String,
+        delay: TimeInterval = 1.0
+    ) {
+        logger.debug("Sending simulated notification: \(title)...")
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.subtitle = subtitle
+        content.body = body
+        content.sound = .default
+        content.threadIdentifier = threadID
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+        let uniqueId = "simulated-\(title)-\(Date().timeIntervalSince1970)-\(UUID().uuidString)"
+        
+        let request = UNNotificationRequest(
+            identifier: uniqueId,
+            content: content,
+            trigger: trigger
+        )
+
+        notificationCenter.add(request) { [weak self] error in
+            if let error = error {
+                self?.logger.debug("Failed to send simulated notification: \(error.localizedDescription)")
+            } else {
+                self?.logger.debug("Simulated notification sent: \(title)")
+            }
+        }
+    }
+
     /// Sends a widget-style test notification with meaningful content
     /// Simulates a notification that might come from a widget
     /// - Parameters:
