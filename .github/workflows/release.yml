@@ -35,10 +35,8 @@ jobs:
           # Download Sparkle tools for generate_appcast
           wget https://github.com/sparkle-project/Sparkle/releases/download/2.7.0/Sparkle-2.7.0.tar.xz -O sparkle.tar.xz
           tar xf sparkle.tar.xz
-          mkdir -p tools
-          # Note: Sparkle 2.x tar.xz extracts directly (bin/, Sparkle.framework/), not into a Sparkle/ subdirectory
-          cp bin/generate_appcast tools/
-          chmod +x tools/generate_appcast
+          # Sparkle 2.x extracts into the current directory (bin/ and Sparkle.framework/)
+          # We must keep the relative structure for the tool to work
           echo "✅ Sparkle tools installed"
 
       - name: Extract version from tag
@@ -153,8 +151,9 @@ jobs:
           # Export the private key from secrets (base64 encoded)
           if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
             echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | base64 -d > sparkle_private_key.pem
-            chmod 600 sparkle_private_key.pem
-            echo "✅ Sparkle private key decoded"
+            # Import to keychain using Sparkle's tool (handles EdDSA keys correctly)
+            ./bin/generate_keys -f sparkle_private_key.pem
+            echo "✅ Sparkle private key imported"
           else
             echo "⚠️  No SPARKLE_PRIVATE_KEY found - appcast will not be signed"
           fi
@@ -170,13 +169,13 @@ jobs:
           # Copy DMG to updates folder
           cp build/Notimanager-macOS.dmg "updates/Notimanager-${VERSION}.dmg"
 
-          # Generate appcast with signing if key is available
+          # Generate appcast (automatically uses key from keychain)
           if [ -f "sparkle_private_key.pem" ]; then
-            echo "📝 Signing appcast with private key..."
-            ./tools/generate_appcast updates --key sparkle_private_key.pem || echo "⚠️  Appcast generation completed with warnings"
+            echo "📝 Generating signed appcast..."
+            ./bin/generate_appcast updates
           else
             echo "⚠️  Generating appcast without signature (development only)"
-            ./tools/generate_appcast updates || true
+            ./bin/generate_appcast updates
           fi
 
           # Patch appcast.xml to use absolute URLs for GitHub Releases
@@ -259,7 +258,7 @@ jobs:
             build/Notimanager-macOS.zip
             build/Notimanager-macOS.dmg
             updates/appcast.xml
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
         env:

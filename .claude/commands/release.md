@@ -11,7 +11,7 @@ hooks:
     - matcher: Bash
       hooks:
         - type: command
-          command: "!git diff --quiet || !git diff --cached --quiet"
+          command: "git diff --quiet && git diff --cached --quiet"
           once: false
 ---
 

@@ -65,3 +65,5 @@ build/certificate-base64.txt
 tools/private-key-base64.txt
 tools/*.pem
 ~/.notimanager-secrets/
+
+*.xz

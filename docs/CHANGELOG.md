@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
+## [2.0.2] - 2026-01-18
+
+### 🐛 Fixed
+- **Sparkle Signing**: Fixed appcast generation to use macOS keychain for private key
+  - Import private key to keychain instead of using --key flag
+  - Use generate_appcast from extracted ./bin/ directory
+  - Enable proper signing for update feeds
+- **Release Command**: Fixed pre-commit hook logic for working directory checks
+
 ## [2.0.1] - 2026-01-18
 
 ### 🐛 Fixed
