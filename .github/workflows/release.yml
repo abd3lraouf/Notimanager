@@ -179,9 +179,13 @@ jobs:
             ./tools/generate_appcast updates || true
           fi
 
-          # Show the generated appcast
+          # Patch appcast.xml to use absolute URLs for GitHub Releases
           if [ -f "updates/appcast.xml" ]; then
-            echo "✅ Appcast generated:"
+            echo "🔧 Patching appcast with absolute URLs..."
+            # Replace local filename with full GitHub Release URL
+            # Pattern: url="Notimanager-1.2.3.dmg" -> url="https://github.com/.../v1.2.3/Notimanager-1.2.3.dmg"
+            sed -i '' "s|url=\"Notimanager-${VERSION}.dmg\"|url=\"https://github.com/abd3lraouf/Notimanager/releases/download/v${VERSION}/Notimanager-${VERSION}.dmg\"|g" updates/appcast.xml
+            echo "✅ Appcast patched"
             cat updates/appcast.xml
           fi
 

@@ -1,9 +1,10 @@
 name: Deploy to GitHub Pages
 
 on:
-  workflow_dispatch:  # Allow manual trigger
-  release:
-    types: [published]  # Run when release is published
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -16,6 +17,8 @@ concurrency:
 
 jobs:
   deploy:
+    # Only run if the Release workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -28,7 +31,8 @@ jobs:
         uses: robinraju/release-downloader@v1.8
         with:
           repository: abd3lraouf/Notimanager
-          tag: v${{ github.event.release.tag_name }}
+          # For workflow_run on a tag push, head_branch is the tag name (e.g. v1.0.0)
+          tag: ${{ github.event.workflow_run.head_branch }}
           fileName: appcast.xml
           out-file-path: ./appcast.xml
 
