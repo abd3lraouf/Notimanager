@@ -2,312 +2,90 @@
 //  MenuBarManager.swift
 //  Notimanager
 //
-//  Created on 2025-01-15.
-//  Manages the menu bar icon and menu.
-//  Extracted from NotificationMoverCoordinator to separate concerns.
+//  Created on 2025-01-17.
+//  Observes configuration changes to update menu bar state
 //
 
 import AppKit
-import Foundation
-import LaunchAtLogin
-import Sparkle
+import SwiftUI
+import Combine
 
-/// Manages the menu bar icon and menu
+/// Manages the menu bar state and observes configuration changes.
+/// UI is now handled by MenuBarExtra in NotimanagerApp.swift
 @available(macOS 10.15, *)
-class MenuBarManager: NSObject {
+class MenuBarManager: NSObject, ObservableObject {
+    static let shared = MenuBarManager()
 
-    // MARK: - Properties
+    // Observe configuration changes
+    private var cancellables = Set<AnyCancellable>()
 
-    private weak var coordinator: CoordinatorAction?
-    private var statusItem: NSStatusItem?
-    private var theMenu: NSMenu?
+    // Track previous values to avoid logging duplicate initial subscriptions
+    private var previousIsHidden: Bool?
+    private var previousIsEnabled: Bool?
+    private var previousPosition: NotificationPosition?
+    private var previousColor: IconColor?
 
-    /// Whether the menu bar icon is visible
-    var isVisible: Bool = true {
-        didSet {
-            if isVisible != oldValue {
-                displayStatusIcon()
-            }
-        }
-    }
-
-    // MARK: - Initialization
-
-    init(coordinator: CoordinatorAction? = nil) {
-        self.coordinator = coordinator
+    private override init() {
         super.init()
+        setupObservers()
     }
 
-    deinit {
-        teardown()
-    }
+    private func setupObservers() {
+        LoggingService.shared.debug("MenuBarManager: Setting up observers", category: "MenuBar")
 
-    /// Sets the coordinator for actions
-    /// - Parameter coordinator: The coordinator instance
-    func setCoordinator(_ coordinator: CoordinatorAction?) {
-        self.coordinator = coordinator
-    }
+        // Observers are kept to trigger objectWillChange if needed,
+        // though SwiftUI's @ObservedObject ConfigurationManager.shared usually handles this in Views.
 
-    // MARK: - Setup
-
-    /// Sets up the menu bar icon and menu
-    func setup() {
-        displayStatusIcon()
-    }
-
-    /// Removes the menu bar icon
-    func teardown() {
-        removeStatusIcon()
-    }
-
-    /// Rebuilds the menu (e.g., after configuration change)
-    func rebuildMenu() {
-        updateButtonIcon()
-        buildMenu()
-    }
-
-    // MARK: - Icon Updates
-
-    /// Updates the menu bar icon based on current state
-    private func updateButtonIcon() {
-        guard let button = statusItem?.button,
-              let coordinator = coordinator else { return }
-
-        let iconName: String
-        if !coordinator.isEnabled {
-            iconName = "MenuBarIcon-disabled"
-        } else {
-            // Use position-specific icon based on current position
-            iconName = "MenuBarIcon-" + coordinator.currentPosition.iconName
-        }
-
-        button.image = NSImage(named: iconName)
-        button.image?.isTemplate = true
-    }
-
-    // MARK: - Status Item Management
-
-    /// Adds the status icon to the menu bar
-    private func addStatusIcon() {
-        guard statusItem == nil else { return }
-
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-
-        if let button = statusItem?.button {
-            button.action = #selector(menuBarButtonClicked)
-            button.target = self
-            updateButtonIcon()
-        }
-
-        buildMenu()
-    }
-
-    /// Removes the status icon from the menu bar
-    private func removeStatusIcon() {
-        if let item = statusItem {
-            NSStatusBar.system.removeStatusItem(item)
-        }
-        statusItem = nil
-    }
-
-    /// Displays or hides the status icon based on isVisible property
-    private func displayStatusIcon() {
-        if isVisible {
-            addStatusIcon()
-        } else {
-            removeStatusIcon()
-        }
-    }
-
-    // MARK: - Menu Building
-
-    private func buildMenu() {
-        guard let coordinator = coordinator else { return }
-
-        let menu = NSMenu()
-
-        // Header
-        menu.addItem(NSMenuItem.sectionHeader(title: "Notimanager"))
-        menu.addItem(NSMenuItem.separator())
-
-        // Position submenu
-        let positionMenuItem = NSMenuItem(
-            title: "Position",
-            action: nil,
-            keyEquivalent: ""
-        )
-        positionMenuItem.target = self
-
-        let positionMenu = buildPositionMenu()
-        positionMenuItem.submenu = positionMenu
-        menu.addItem(positionMenuItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Settings
-        let settingsItem = NSMenuItem(
-            title: "Settings...",
-            action: #selector(showSettings),
-            keyEquivalent: ","
-        )
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        // Check for Updates
-        let checkForUpdatesItem = NSMenuItem(
-            title: "Check for Updates...",
-            action: #selector(checkForUpdates),
-            keyEquivalent: ""
-        )
-        checkForUpdatesItem.target = self
-        menu.addItem(checkForUpdatesItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Enable Toggle
-        let enabledItem = NSMenuItem(
-            title: "Enable Notification Positioning",
-            action: #selector(toggleEnabled),
-            keyEquivalent: "e"
-        )
-        enabledItem.target = self
-        enabledItem.state = coordinator.isEnabled ? .on : .off
-        menu.addItem(enabledItem)
-
-        // Launch at Login
-        let launchItem = NSMenuItem(
-            title: "Launch at Login",
-            action: #selector(toggleLaunchAtLogin),
-            keyEquivalent: "l"
-        )
-        launchItem.target = self
-        launchItem.state = isLaunchAtLoginEnabled ? .on : .off
-        menu.addItem(launchItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Quit
-        let quitItem = NSMenuItem(
-            title: "Quit Notimanager",
-            action: #selector(quit),
-            keyEquivalent: "q"
-        )
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        theMenu = menu
-        statusItem?.menu = menu
-    }
-
-    /// Attach a menu to the status item
-    func attachMenu(_ menu: NSMenu) {
-        theMenu = menu
-        if let statusItem = statusItem {
-            statusItem.menu = menu
-        }
-    }
-
-    /// Open the status item menu
-    func openMenu() {
-        guard let statusItem = statusItem,
-              let button = statusItem.button else { return }
-
-        // Temporarily set the menu
-        statusItem.menu = theMenu
-
-        // Perform a click to show the menu
-        button.performClick(nil)
-
-        // Clear the menu so target/action works
-        statusItem.menu = nil
-    }
-
-    private func buildPositionMenu() -> NSMenu {
-        guard let coordinator = coordinator else { return NSMenu() }
-
-        let menu = NSMenu()
-
-        // Add only the 4 corner positions (matching the 2x2 grid in PositionGridView)
-        let positions: [NotificationPosition] = [
-            .topLeft, .topRight,
-            .bottomLeft, .bottomRight
-        ]
-
-        for position in positions {
-            let item = NSMenuItem(
-                title: position.displayName,
-                action: #selector(changePosition(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = position
-
-            // Check mark for current position
-            if position == coordinator.currentPosition {
-                item.state = .on
+        ConfigurationManager.shared.$isMenuBarIconHidden
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isHidden in
+                guard let self = self else { return }
+                // Only log if value actually changed
+                if self.previousIsHidden != isHidden {
+                    LoggingService.shared.debug("MenuBarManager: isMenuBarIconHidden changed to \(isHidden)", category: "MenuBar")
+                    self.previousIsHidden = isHidden
+                    self.objectWillChange.send()
+                }
             }
+            .store(in: &cancellables)
 
-            menu.addItem(item)
-        }
+        ConfigurationManager.shared.$isEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                guard let self = self else { return }
+                // Only log if value actually changed
+                if self.previousIsEnabled != isEnabled {
+                    LoggingService.shared.debug("MenuBarManager: isEnabled changed to \(isEnabled)", category: "MenuBar")
+                    self.previousIsEnabled = isEnabled
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &cancellables)
 
-        return menu
-    }
+        ConfigurationManager.shared.$currentPosition
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] position in
+                guard let self = self else { return }
+                // Only log if value actually changed
+                if self.previousPosition != position {
+                    LoggingService.shared.debug("MenuBarManager: currentPosition changed to \(position.displayName)", category: "MenuBar")
+                    self.previousPosition = position
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &cancellables)
 
-    // MARK: - Actions
-
-    /// Checks if launch at login is enabled using LaunchAtLogin library
-    private var isLaunchAtLoginEnabled: Bool {
-        if #available(macOS 13.0, *) {
-            return LaunchAtLogin.isEnabled
-        }
-        // No fallback for macOS < 13.0 - LaunchAtLogin package requires macOS 13+
-        return false
-    }
-
-    @objc private func menuBarButtonClicked() {
-        // Menu is shown automatically via statusItem.menu
-    }
-
-    @objc private func showSettings() {
-        coordinator?.showSettings()
-        rebuildMenu()
-    }
-
-    @objc private func changePosition(_ sender: NSMenuItem) {
-        guard let position = sender.representedObject as? NotificationPosition else { return }
-        coordinator?.updatePosition(to: position)
-        rebuildMenu()
-    }
-
-    @objc private func toggleEnabled() {
-        coordinator?.toggleEnabled()
-        rebuildMenu()
-    }
-
-    @objc private func toggleLaunchAtLogin() {
-        if #available(macOS 13.0, *) {
-            LaunchAtLogin.isEnabled.toggle()
-            rebuildMenu()
-        }
-        // Note: No fallback for macOS < 13.0 as LaunchAtLogin package requires macOS 13+
-    }
-
-    @objc private func quit() {
-        coordinator?.quit()
-    }
-
-    @objc private func checkForUpdates() {
-        UpdateManager.shared.checkForUpdates()
-    }
-}
-
-// MARK: - NSMenuItem Extensions
-
-extension NSMenuItem {
-    /// Creates a section header menu item (disabled, no action)
-    static func sectionHeader(title: String) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.isEnabled = false
-        return item
+        ConfigurationManager.shared.$iconColor
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] color in
+                guard let self = self else { return }
+                // Only log if value actually changed
+                if self.previousColor != color {
+                    LoggingService.shared.debug("MenuBarManager: iconColor changed to \(color.displayName)", category: "MenuBar")
+                    self.previousColor = color
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &cancellables)
     }
 }

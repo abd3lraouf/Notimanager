@@ -56,6 +56,28 @@ final class UpdateManager: NSObject {
         }
     }
 
+    /// The last time updates were checked
+    private let lastCheckDateKey = "lastUpdateCheckDate"
+
+    var lastUpdateCheckDate: Date? {
+        get {
+            UserDefaults.standard.object(forKey: lastCheckDateKey) as? Date
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: lastCheckDateKey)
+        }
+    }
+
+    /// The current app version
+    var currentAppVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
+
+    /// The current build number
+    var currentBuildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+    }
+
     // MARK: - Initialization
 
     private override init() {
@@ -70,7 +92,7 @@ final class UpdateManager: NSObject {
         // Initialize the updater controller with Sparkle
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: self,
             userDriverDelegate: nil
         )
     }
@@ -85,5 +107,46 @@ final class UpdateManager: NSObject {
     /// Checks for updates in the background (no UI shown unless update found)
     func checkForUpdatesInBackground() {
         updater?.checkForUpdatesInBackground()
+    }
+
+    /// Formats the last check date for display
+    func formattedLastCheckDate() -> String {
+        guard let date = lastUpdateCheckDate else {
+            return "Never"
+        }
+
+        let now = Date()
+        let timeInterval = now.timeIntervalSince(date)
+
+        if timeInterval < 60 {
+            return "Just now"
+        } else if timeInterval < 3600 {
+            let minutes = Int(timeInterval / 60)
+            return "\(minutes) \(minutes == 1 ? "minute" : "minutes") ago"
+        } else if timeInterval < 86400 {
+            let hours = Int(timeInterval / 3600)
+            return "\(hours) \(hours == 1 ? "hour" : "hours") ago"
+        } else if timeInterval < 604800 {
+            let days = Int(timeInterval / 86400)
+            return "\(days) \(days == 1 ? "day" : "days") ago"
+        } else {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            return formatter.localizedString(for: date, relativeTo: now)
+        }
+    }
+}
+
+// MARK: - SPUUpdaterDelegate
+
+extension UpdateManager: SPUUpdaterDelegate {
+    func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
+        // Update last check date when check completes
+        lastUpdateCheckDate = Date()
+    }
+
+    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        // Still update last check date on error
+        lastUpdateCheckDate = Date()
     }
 }

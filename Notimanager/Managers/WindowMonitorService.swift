@@ -32,6 +32,10 @@ class WindowMonitorService {
     private var stabilizingWindows: [AXUIElementWrapper: Date] = [:]
     private let stabilizationDuration: TimeInterval = 2.0 // Stabilize for 2 seconds (longer for smoother experience)
 
+    /// Tracks active notification windows for stacking
+    /// Key: AXUIElement (wrapped), Value: Stack index and detection time
+    private var activeNotifications: [AXUIElementWrapper: (stackIndex: Int, detectionTime: Date)] = [:]
+
     // MARK: - Dependencies
 
     private let notificationCenterBundleID = "com.apple.notificationcenterui"
@@ -54,11 +58,14 @@ class WindowMonitorService {
     /// Sets the NotificationMover reference for callbacks
     /// - Parameter mover: The NotificationMover instance
     func setNotificationMover(_ mover: NotificationMover?) {
+        LoggingService.shared.debug("WindowMonitorService: setNotificationMover called", category: "WindowMonitor")
         notificationMover = mover
     }
 
     /// Starts monitoring all windows for new notifications
     func startMonitoring() {
+        LoggingService.shared.debug("WindowMonitorService: Starting monitoring", category: "WindowMonitor")
+
         buildKnownWindowSet()
         setupNotificationCenterObserver()
 
@@ -69,7 +76,7 @@ class WindowMonitorService {
                 self?.detectNewNotificationWindows()
             }
         )
-        
+
         stabilizationTimer = Timer.scheduledTimer(
             withTimeInterval: stabilizationInterval,
             repeats: true,
@@ -77,16 +84,21 @@ class WindowMonitorService {
                 self?.stabilizeWindows()
             }
         )
+
+        LoggingService.shared.debug("WindowMonitorService: Monitoring started", category: "WindowMonitor")
     }
 
     /// Stops monitoring
     func stopMonitoring() {
+        LoggingService.shared.debug("WindowMonitorService: Stopping monitoring", category: "WindowMonitor")
+
         globalWindowMonitorTimer?.invalidate()
         globalWindowMonitorTimer = nil
-        
+
         stabilizationTimer?.invalidate()
         stabilizationTimer = nil
         stabilizingWindows.removeAll()
+        activeNotifications.removeAll()
 
         // Clean up all app observers
         appObservers.values.forEach { observer in
@@ -237,10 +249,20 @@ class WindowMonitorService {
             return
         }
 
-        // Calculate where we WANT the banner to be
-        let targetBannerPos = NotificationPositioningService.shared.calculatePositionWithAutoPadding(
+        // Register this notification for stacking and get its stack index
+        let wrapper = AXUIElementWrapper(element: window)
+        let stackIndex = getStackIndex(for: wrapper, at: configPosition)
+
+        // Calculate where we WANT the banner to be (with stacking offset)
+        let padding = NotificationPositioningService.shared.getPaddingForPosition(
+            configPosition,
+            screenSize: NSScreen.main!.frame.size
+        )
+        let targetBannerPos = NotificationPositioningService.shared.calculateStackedPosition(
             notifSize: bannerSize,
+            padding: padding,
             currentPosition: configPosition,
+            stackIndex: stackIndex,
             screenBounds: NSScreen.main!.frame
         )
 
@@ -259,11 +281,47 @@ class WindowMonitorService {
             y: currentWindowPos.y + deltaY
         )
 
-        LoggingService.shared.debug("   Attempting to stabilize notification to \(configPosition.displayName)")
+        LoggingService.shared.debug("   Attempting to stabilize notification to \(configPosition.displayName) (stack index: \(stackIndex))")
         LoggingService.shared.debug("   Banner: \(currentBannerPos) -> \(targetBannerPos) (Delta: \(deltaX), \(deltaY))")
         LoggingService.shared.debug("   Window: \(currentWindowPos) -> \(newWindowPos)")
 
         applyPositionToWindow(window, targetPos: newWindowPos, deltaX: deltaX, deltaY: deltaY, immediateMode: immediateMode)
+    }
+
+    /// Gets the stack index for a notification window
+    /// - Parameters:
+    ///   - wrapper: The wrapped AXUIElement
+    ///   - position: The current position setting
+    /// - Returns: The stack index (0 = newest/base position, higher numbers = older/pushed away)
+    private func getStackIndex(for wrapper: AXUIElementWrapper, at position: NotificationPosition) -> Int {
+        let now = Date()
+
+        // Check if this notification is already tracked
+        if let existing = activeNotifications[wrapper] {
+            // Update its detection time to keep it alive
+            activeNotifications[wrapper] = (existing.stackIndex, now)
+            return existing.stackIndex
+        }
+
+        // Clean up old notifications (older than 10 seconds)
+        let timeout: TimeInterval = 10.0
+        activeNotifications = activeNotifications.filter { _, data in
+            now.timeIntervalSince(data.detectionTime) < timeout
+        }
+
+        // Increment all existing notification indices (shift them away from base position)
+        // This ensures newer notifications are always at the base position (index 0)
+        for (key, data) in activeNotifications {
+            activeNotifications[key] = (data.stackIndex + 1, data.detectionTime)
+        }
+
+        // New notification gets index 0 (base position)
+        let stackIndex = 0
+
+        // Register this notification
+        activeNotifications[wrapper] = (stackIndex, now)
+
+        return stackIndex
     }
 
     /// Applies position to a window with optional immediate mode firehose

@@ -59,65 +59,24 @@ class NotificationPositioningService {
     ) -> CGPoint {
         
         // Detailed Debug Logging
-        LoggingService.shared.debug("--- Position Calculation Start ---")
-        LoggingService.shared.debug("Target Position: \(currentPosition.displayName)")
-        LoggingService.shared.debug("Notification Size: \(Int(notifSize.width))x\(Int(notifSize.height))")
-        LoggingService.shared.debug("Screen Full Frame: \(fullFrame)")
-        LoggingService.shared.debug("Screen Visible Frame: \(visibleFrame)")
-        LoggingService.shared.debug("Padding: \(padding)")
-        
-        // 3. Convert Safe Boundaries to Quartz Coordinates (Top-Left Origin)
-        // Cocoa Y=0 is Bottom. Quartz Y=0 is Top.
-        // Q_Y = ScreenTopY_Cocoa - PointY_Cocoa
-        
-        // Screen Top Y in Cocoa is fullFrame.maxY
-        
-        // SafeTop (Quartz) = Distance from screen top to visible area top
-        // Q_SafeTop = fullFrame.maxY - visibleFrame.maxY
-        let safeTop = fullFrame.maxY - visibleFrame.maxY
-        
-        // SafeBottom (Quartz) = Distance from screen top to visible area bottom
-        // Q_SafeBottom = fullFrame.maxY - visibleFrame.minY
-        let safeBottom = fullFrame.maxY - visibleFrame.minY
-        
-        // SafeLeft/SafeRight (X is same in both)
-        let safeLeft = visibleFrame.minX
-        let safeRight = visibleFrame.maxX
-        
-        let safeWidth = visibleFrame.width
-        let safeHeight = visibleFrame.height
-        
-        LoggingService.shared.debug("Safe Margins (Quartz): Top=\(safeTop), Bottom=\(safeBottom), Left=\(safeLeft), Right=\(safeRight)")
+        LoggingService.shared.debug("--- Position Calculation Start ---", category: "Positioning")
+        LoggingService.shared.debug("Target Position: \(currentPosition.displayName)", category: "Positioning")
+        LoggingService.shared.debug("Notification Size: \(Int(notifSize.width))x\(Int(notifSize.height))", category: "Positioning")
+        LoggingService.shared.debug("Padding: \(Int(padding))", category: "Positioning")
 
-        let newX: CGFloat
-        let newY: CGFloat
+        // Use the Strategy Pattern (OCP)
+        let strategy = PositionStrategyFactory.makeStrategy(for: currentPosition)
+        let point = strategy.calculatePosition(
+            notifSize: notifSize,
+            padding: padding,
+            visibleFrame: visibleFrame,
+            fullFrame: fullFrame
+        )
 
-        // 4. Calculate X (Horizontal)
-        switch currentPosition {
-        case .topLeft, .bottomLeft:
-            // Left: SafeLeft + Padding
-            newX = safeLeft + padding
+        LoggingService.shared.debug("Calculated Position: (\(Int(point.x)), \(Int(point.y)))", category: "Positioning")
+        LoggingService.shared.debug("--- Position Calculation End ---", category: "Positioning")
 
-        case .topRight, .bottomRight:
-            // Right: SafeRight - BannerWidth - Padding
-            newX = safeRight - notifSize.width - padding
-        }
-
-        // 5. Calculate Y (Vertical)
-        switch currentPosition {
-        case .topLeft, .topRight:
-            // Top: SafeTop + Padding
-            newY = safeTop + padding
-
-        case .bottomLeft, .bottomRight:
-            // Bottom: SafeBottom - BannerHeight - Padding
-            newY = safeBottom - notifSize.height - padding
-        }
-
-        LoggingService.shared.debug("Calculated Position: (\(Int(newX)), \(Int(newY)))")
-        LoggingService.shared.debug("--- Position Calculation End ---")
-
-        return CGPoint(x: newX, y: newY)
+        return point
     }
 
     /// Validates if a position is within screen bounds
@@ -204,6 +163,54 @@ class NotificationPositioningService {
     func getDockHeight() -> CGFloat {
         // Use visible frame origin to get actual dock height
         return NSScreen.main!.visibleFrame.origin.y
+    }
+
+    // MARK: - Stacked Position Calculation
+
+    /// Calculates the target position for a notification with stacking offset
+    /// - Parameters:
+    ///   - notifSize: The size of the notification
+    ///   - padding: The padding from screen edges
+    ///   - currentPosition: The desired position
+    ///   - stackIndex: The index in the stack (0 = base position, 1 = first offset, etc.)
+    ///   - stackSpacing: The vertical spacing between stacked notifications
+    ///   - screenBounds: The screen bounds (defaults to main screen)
+    /// - Returns: A CGPoint representing the target position with stack offset
+    func calculateStackedPosition(
+        notifSize: CGSize,
+        padding: CGFloat,
+        currentPosition: NotificationPosition,
+        stackIndex: Int = 0,
+        stackSpacing: CGFloat = 16,
+        screenBounds: CGRect = NSScreen.main!.frame
+    ) -> CGPoint {
+
+        // Get the base position
+        let basePosition = calculatePosition(
+            notifSize: notifSize,
+            padding: padding,
+            currentPosition: currentPosition,
+            screenBounds: screenBounds
+        )
+
+        // Apply stacking offset based on position
+        // Each stacked notification needs full height + spacing to avoid overlap
+        let totalOffset = (notifSize.height + stackSpacing) * CGFloat(stackIndex)
+        
+        let stackedY: CGFloat
+        switch currentPosition {
+        case .topLeft, .topRight:
+            // For top positions: stack downward (increase Y in Quartz coordinates)
+            // Newer notifications (index 0) at top, older ones pushed down
+            stackedY = basePosition.y + totalOffset
+
+        case .bottomLeft, .bottomRight:
+            // For bottom positions: stack upward (decrease Y in Quartz coordinates)
+            // Newer notifications (index 0) at bottom, older ones pushed up
+            stackedY = basePosition.y - totalOffset
+        }
+
+        return CGPoint(x: basePosition.x, y: stackedY)
     }
 }
 

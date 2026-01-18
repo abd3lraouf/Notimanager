@@ -36,12 +36,17 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Application finished launching - forward to coordinator
     func applicationDidFinishLaunching(_ notification: Notification) {
+        LoggingService.shared.debug("Application did finish launching", category: "NotificationMover")
         coordinator.applicationDidFinishLaunching(notification)
     }
 
-    /// Application should handle reopen - show settings when dock icon is clicked
+    /// Application should handle reopen - show settings when app is launched again
+    /// This is the "Scroll Reverser" pattern: when menu bar icon is hidden and user launches app again,
+    /// open Settings window so they can access the app
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // If no windows are visible, show settings window
+        // This happens when user launches app again while menu bar icon is hidden
+        LoggingService.shared.debug("Application should handle reopen (hasVisibleWindows: \(flag))", category: "NotificationMover")
         if !flag {
             coordinator.showSettings()
         }
@@ -50,11 +55,13 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Application is about to become active - forward to coordinator
     func applicationWillBecomeActive(_ notification: Notification) {
+        LoggingService.shared.debug("Application will become active", category: "NotificationMover")
         coordinator.applicationDidBecomeActive(notification)
     }
 
     /// Application is about to terminate - forward to coordinator
     func applicationWillTerminate(_ notification: Notification) {
+        LoggingService.shared.info("Application will terminate", category: "NotificationMover")
         coordinator.applicationWillTerminate(notification)
     }
 
@@ -73,28 +80,33 @@ class NotificationMover: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Moves all notifications to the configured position
     func moveAllNotifications() {
+        LoggingService.shared.debug("moveAllNotifications called", category: "NotificationMover")
         // This is called by WindowMonitorService via setNotificationMover
         // The coordinator's moveAllNotifications will handle this
     }
 
     /// Moves a single notification element
     func moveNotification(_ window: AXUIElement) {
+        LoggingService.shared.debug("moveNotification called for element", category: "NotificationMover")
         // This is called by WindowMonitorService via setNotificationMover
         // The coordinator will handle this through its services
     }
 
     /// Sets up the status item (menu bar icon)
     func setupStatusItem() {
+        LoggingService.shared.debug("setupStatusItem called", category: "NotificationMover")
         // Handled by MenuBarManager in the coordinator
     }
 
     /// Shows the settings window
     func showSettings() {
+        LoggingService.shared.debug("showSettings called", category: "NotificationMover")
         coordinator.showSettings()
     }
 
     /// Sends a test notification
     @objc func sendTestNotification() {
+        LoggingService.shared.debug("sendTestNotification called", category: "NotificationMover")
         coordinator.sendTestNotification()
     }
 

@@ -9,7 +9,7 @@
 import AppKit
 import os.log
 
-/// Centralized logging service that handles both debug logging and diagnostic window output
+/// Centralized logging service that handles both debug logging, file logging, and diagnostic window output
 @available(macOS 10.15, *)
 class LoggingService {
 
@@ -17,7 +17,10 @@ class LoggingService {
 
     static let shared = LoggingService()
 
-    private init() {}
+    private init() {
+        // Initialize the FileLogger
+        FileLogger.shared.initialize()
+    }
 
     // MARK: - Properties
 
@@ -29,31 +32,76 @@ class LoggingService {
     /// Whether debug mode is enabled
     var isDebugModeEnabled: Bool = false
 
+    /// Whether file logging is enabled
+    var isFileLoggingEnabled: Bool = false {
+        didSet {
+            Task { @MainActor in
+                await FileLogger.shared.log(
+                    level: .info,
+                    message: "File logging \(isFileLoggingEnabled ? "enabled" : "disabled")",
+                    category: "LoggingService"
+                )
+            }
+        }
+    }
+
     // MARK: - Debug Logging
 
     /// Logs a debug message if debug mode is enabled
-    /// - Parameter message: The message to log
-    func debug(_ message: String) {
+    /// - Parameters:
+    ///   - message: The message to log
+    ///   - category: Optional category for better organization (default: "General")
+    func debug(_ message: String, category: String = "General") {
         guard isDebugModeEnabled else { return }
         logger.info("\(message, privacy: .public)")
+
+        if isFileLoggingEnabled {
+            Task { @MainActor in
+                await FileLogger.shared.log(level: .debug, message: message, category: category)
+            }
+        }
     }
 
     /// Logs a debug message regardless of debug mode setting
-    /// - Parameter message: The message to log
-    func info(_ message: String) {
+    /// - Parameters:
+    ///   - message: The message to log
+    ///   - category: Optional category for better organization (default: "General")
+    func info(_ message: String, category: String = "General") {
         logger.info("\(message, privacy: .public)")
+
+        if isFileLoggingEnabled {
+            Task { @MainActor in
+                await FileLogger.shared.log(level: .info, message: message, category: category)
+            }
+        }
     }
 
     /// Logs an error message
-    /// - Parameter message: The error message to log
-    func error(_ message: String) {
+    /// - Parameters:
+    ///   - message: The error message to log
+    ///   - category: Optional category for better organization (default: "General")
+    func error(_ message: String, category: String = "General") {
         logger.error("\(message, privacy: .public)")
+
+        if isFileLoggingEnabled {
+            Task { @MainActor in
+                await FileLogger.shared.log(level: .error, message: message, category: category)
+            }
+        }
     }
 
     /// Logs a warning message
-    /// - Parameter message: The warning message to log
-    func warning(_ message: String) {
+    /// - Parameters:
+    ///   - message: The warning message to log
+    ///   - category: Optional category for better organization (default: "General")
+    func warning(_ message: String, category: String = "General") {
         logger.warning("\(message, privacy: .public)")
+
+        if isFileLoggingEnabled {
+            Task { @MainActor in
+                await FileLogger.shared.log(level: .warning, message: message, category: category)
+            }
+        }
     }
 
     // MARK: - Diagnostic Logging
@@ -116,6 +164,60 @@ class LoggingService {
         }
 
         debug("Active Notification Subroles: \(notificationSubroles.joined(separator: ", "))")
+    }
+
+    // MARK: - File Logging Management
+
+    /// Opens the logs directory in Finder
+    func openLogsDirectory() {
+        Task { @MainActor in
+            let logsDir = await FileLogger.shared.getLogsDirectory()
+            NSWorkspace.shared.activateFileViewerSelecting([logsDir])
+        }
+    }
+
+    /// Returns an array of all log files with their sizes
+    func getLogFilesInfo() async -> [(name: String, size: String, url: URL)] {
+        let files = await FileLogger.shared.getLogFiles()
+        var fileInfo: [(name: String, size: String, url: URL)] = []
+
+        for file in files {
+            let name = file.lastPathComponent
+            let sizeBytes = getFileSize(at: file)
+            let sizeFormatted = formatFileSize(sizeBytes)
+            fileInfo.append((name: name, size: sizeFormatted, url: file))
+        }
+
+        return fileInfo.sorted { $0.name > $1.name }
+    }
+
+    /// Returns the current log file size formatted as string
+    func getCurrentLogFileSize() async -> String {
+        let sizeBytes = await FileLogger.shared.getCurrentLogFileSize()
+        return formatFileSize(sizeBytes)
+    }
+
+    /// Clears all log files
+    func clearAllLogs() {
+        Task { @MainActor in
+            await FileLogger.shared.clearAllLogs()
+        }
+    }
+
+    private func getFileSize(at url: URL) -> UInt64 {
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            return attributes[.size] as? UInt64 ?? 0
+        } catch {
+            return 0
+        }
+    }
+
+    private func formatFileSize(_ bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 }
 

@@ -14,12 +14,11 @@ import Combine
 @available(macOS 10.15, *)
 class AppKitMenuBarManager: NSObject {
 
-    static let shared = AppKitMenuBarManager()
-
     // MARK: - Properties
 
-    private var statusItem: NSStatusItem?
+    var statusItem: NSStatusItem? // Made internal for testing
     private var cancellables = Set<AnyCancellable>()
+    private let settingsOpener: SettingsOpening // Use protocol for DI
 
     // Menu item references for updating state
     private var enableToggleItem: NSMenuItem?
@@ -28,15 +27,18 @@ class AppKitMenuBarManager: NSObject {
 
     // MARK: - Initialization
 
-    private override init() {
+    init(settingsOpener: SettingsOpening = SettingsOpener.shared) { // Inject dependency
+        self.settingsOpener = settingsOpener
         super.init()
         setupMenuBar()
         setupObservers()
     }
 
+    static let shared = AppKitMenuBarManager()
+
     // MARK: - Setup
 
-    private func setupMenuBar() {
+    internal func setupMenuBar() {
         // Create status item in menu bar
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
@@ -95,8 +97,17 @@ class AppKitMenuBarManager: NSObject {
         menu.addItem(NSMenuItem.separator())
 
         // Preferences
+        // macOS 13+ convention: "Settings..." instead of "Preferences..."
+        let prefsTitle = {
+            if #available(macOS 13.0, *) {
+                return "Settings…"
+            } else {
+                return "Preferences…"
+            }
+        }()
+        
         let prefsItem = NSMenuItem(
-            title: "Preferences…",
+            title: prefsTitle,
             action: #selector(openPreferences),
             keyEquivalent: ","
         )
@@ -246,9 +257,9 @@ class AppKitMenuBarManager: NSObject {
     }
 
     @objc private func openPreferences() {
-        // Use SettingsOpener to open Settings with @Environment(\.openSettings)
+        // Use injected SettingsOpener to open Settings with @Environment(\.openSettings)
         if #available(macOS 14.0, *) {
-            SettingsOpener.shared.openSettings(tab: "general")
+            settingsOpener.openSettings(tab: "general")
         } else {
             // Fallback for older macOS versions
             NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
@@ -261,9 +272,9 @@ class AppKitMenuBarManager: NSObject {
     }
 
     @objc private func showAbout() {
-        // Use SettingsOpener to open Settings with @Environment(\.openSettings)
+        // Use injected SettingsOpener to open Settings with @Environment(\.openSettings)
         if #available(macOS 14.0, *) {
-            SettingsOpener.shared.openSettings(tab: "help")
+            settingsOpener.openSettings(tab: "help")
         } else {
             // Fallback for older macOS versions
             NSApp.orderFrontStandardAboutPanel(options: [:])
