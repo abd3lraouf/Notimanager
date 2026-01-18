@@ -2,139 +2,198 @@
 //  InterceptionSettingsView.swift
 //  Notimanager
 //
-//  SwiftUI Interception Settings view following Blip Settings design system.
+//  Created on 2026-01-17.
+//  Refactored to use InterceptionSettingsViewModel (MVI).
 //
 
 import SwiftUI
+import UserNotifications
 
 struct InterceptionSettingsView: View {
-    @AppStorage("interceptNotifications") private var interceptNotifications = false
-    @AppStorage("interceptWidgets") private var interceptWidgets = false
-    @State private var selectedPosition: NotificationPosition = .topRight
-    @State private var testStatusMessage: String = ""
-    @State private var testStatusColor: Color = .primary
+    @StateObject private var viewModel: InterceptionSettingsViewModel
+    
+    init(viewModel: InterceptionSettingsViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Interception Section
-                interceptionSection
+        VStack(spacing: 12) {
+            // Interception Section
+            interceptionSection
 
-                // Position Preview Section
-                positionPreviewSection
+            // Position Preview Section
+            positionPreviewSection
 
-                // Test Section
-                testSection
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity)
+            // Test Section
+            testSection
         }
+        .padding(12)
+        .frame(maxWidth: .infinity)
         .background(Color(red: 0xF5/255.0, green: 0xF5/255.0, blue: 0xF7/255.0))
-        .frame(width: 540)
     }
 
     private var interceptionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("NOTIFICATION INTERCEPTION")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
-
-            BlipCard {
-                VStack(spacing: 0) {
-                    // Intercept Normal Notifications - Purple icon
-                    BlipToggleRow(
-                        systemName: "bell.badge",
-                        color: .purple,
-                        title: "Normal notifications",
-                        subtitle: "Intercept standard system notification banners and alerts",
-                        isOn: $interceptNotifications
+        BlipCard {
+            VStack(spacing: 0) {
+                // Intercept Normal Notifications
+                BlipToggleRow(
+                    systemName: "bell.badge",
+                    color: .purple,
+                    title: SettingsStrings.Notifications.notificationBanners,
+                    subtitle: nil,
+                    isOn: Binding(
+                        get: { viewModel.state.interceptNotifications },
+                        set: { viewModel.process(.setInterceptNotifications($0)) }
                     )
+                )
 
-                    BlipSeparator()
+                BlipSeparator()
 
-                    // Intercept Widgets - Purple icon
-                    BlipToggleRow(
-                        systemName: "square.grid.2x2",
-                        color: .purple,
-                        title: "Widgets",
-                        subtitle: "Intercept Notification Center and interactive widgets",
-                        isOn: $interceptWidgets
+                // Intercept Widgets
+                BlipToggleRow(
+                    systemName: "square.grid.2x2",
+                    color: .purple,
+                    title: SettingsStrings.Notifications.widgetsAndAlerts,
+                    subtitle: nil,
+                    isOn: Binding(
+                        get: { viewModel.state.interceptWidgets },
+                        set: { viewModel.process(.setInterceptWidgets($0)) }
                     )
-                }
+                )
+
+                BlipSeparator()
+
+                // Notification Direction
+                BlipPickerRow(
+                    systemName: "arrow.up.forward.app",
+                    color: .blue,
+                    title: SettingsStrings.Notifications.screenCorner,
+                    subtitle: nil,
+                    selection: Binding(
+                        get: { viewModel.state.currentPosition },
+                        set: { viewModel.process(.setPosition($0)) }
+                    ),
+                    displayValue: { $0.displayName }
+                )
             }
         }
     }
 
     private var positionPreviewSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("POSITION PREVIEW")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
+        // Position Preview Card
+        BlipCard {
+            ZStack(alignment: positionAlignment) {
+                // Background
+                Color(red: 0xF5/255.0, green: 0xF5/255.0, blue: 0xF7/255.0)
 
-            Text("See exactly where notifications will appear.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
+                // Sample notification preview
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(.purple)
+                        .frame(width: 28, height: 28)
+                        .overlay {
+                            Image(systemName: "bell.fill")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.white)
+                        }
 
-            // Position Grid Preview (simplified white card)
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white)
-                .frame(height: 200)
-                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-                .overlay {
-                    VStack {
-                        Text("Position: \(selectedPosition.displayName)")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(.primary.opacity(0.3))
+                            .frame(width: 120, height: 8)
+
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(.primary.opacity(0.2))
+                            .frame(width: 80, height: 6)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(red: 0xF5/255.0, green: 0xF5/255.0, blue: 0xF7/255.0))
                 }
-                .padding(.horizontal, 20)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.white)
+                        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                )
+                .padding(viewModel.state.currentPosition.edgeInsets)
+            }
+            .frame(height: 160)
         }
     }
 
     private var testSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("TEST INTERCEPTION")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
+        BlipCard {
+            VStack(spacing: 0) {
+                // Test Banner
+                HStack(spacing: 12) {
+                    BlipIconView(systemName: "bell", color: .blue)
 
-            Text("Send test notifications to verify interception is working.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(SettingsStrings.Notifications.testNotification)
+                            .font(.system(size: 14))
+                            .foregroundStyle(.primary)
 
-            HStack(spacing: 12) {
-                Button("Banner") {
-                    // Test action
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
-
-                Button("Widget") {
-                    // Test action
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-            }
-            .padding(.horizontal, 20)
-
-            if !testStatusMessage.isEmpty {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(.white)
-                    .overlay {
-                        Text(testStatusMessage)
-                            .font(.system(size: 12))
-                            .foregroundStyle(testStatusColor)
+                        Text(SettingsStrings.Notifications.testNotificationSubtitle)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 20)
+
+                    Spacer()
+
+                    Button(SettingsStrings.Notifications.test) {
+                        viewModel.process(.sendTestNotification)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+
+                BlipSeparator()
+
+                // Test Widget
+                HStack(spacing: 12) {
+                    BlipIconView(systemName: "square.grid.2x2", color: .purple)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(SettingsStrings.Notifications.testAlert)
+                            .font(.system(size: 14))
+                            .foregroundStyle(.primary)
+
+                        Text(SettingsStrings.Notifications.testAlertSubtitle)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button(SettingsStrings.Notifications.test) {
+                        viewModel.process(.sendTestWidgetNotification)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
+        }
+    }
+
+    private var positionAlignment: Alignment {
+        switch viewModel.state.currentPosition {
+        case .topLeft: return .topLeading
+        case .topRight: return .topTrailing
+        case .bottomLeft: return .bottomLeading
+        case .bottomRight: return .bottomTrailing
+        }
+    }
+}
+
+// MARK: - Notification Position Extensions
+
+extension NotificationPosition {
+    var edgeInsets: CGFloat {
+        switch self {
+        case .topLeft, .topRight: return 24
+        case .bottomLeft, .bottomRight: return 24
         }
     }
 }

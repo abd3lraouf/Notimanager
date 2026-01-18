@@ -2,186 +2,231 @@
 //  GeneralSettingsView.swift
 //  Notimanager
 //
-//  SwiftUI General Settings view following Blip Settings design system.
-//  Solid white cards, vibrant colored icons, standardized spacing.
+//  Created on 2026-01-17.
+//  Refactored to use GeneralSettingsViewModel (MVI).
 //
 
 import SwiftUI
 import LaunchAtLogin
+import Sparkle
+import ServiceManagement
 
 struct GeneralSettingsView: View {
-    @AppStorage("launchAtLogin") private var launchAtLogin = false
-    @AppStorage("isEnabled") private var isEnabled = false
-    @AppStorage("isMenuBarIconHidden") private var isMenuBarIconHidden = false
-    @AppStorage("automaticallyChecksForUpdates") private var checkForUpdates = false
-    @AppStorage("automaticallyDownloadsUpdates") private var downloadUpdates = false
-
-    @State private var showQuitConfirmation = false
+    @StateObject private var viewModel: GeneralSettingsViewModel
+    
+    init(viewModel: GeneralSettingsViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // System Section
-                systemSection
+        VStack(spacing: 12) {
+            // System Section
+            systemSection
 
-                // Updates Section
-                updatesSection
+            // Updates Section
+            updatesSection
 
-                // Application Section
-                applicationSection
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity)
+            // Application Section
+            applicationSection
         }
+        .padding(12)
+        .frame(maxWidth: .infinity)
         .background(Color(red: 0xF5/255.0, green: 0xF5/255.0, blue: 0xF7/255.0))
-        .frame(width: 540)
+        .alert(SettingsStrings.Alerts.hideMenuBarIconTitle, isPresented: Binding(
+            get: { viewModel.state.showHideConfirmation },
+            set: { _ in }
+        )) {
+            Button(SettingsStrings.Alerts.cancel, role: .cancel) {
+                viewModel.process(.cancelHideMenuBarIcon)
+            }
+            Button(SettingsStrings.Alerts.hide, role: .destructive) {
+                viewModel.process(.confirmHideMenuBarIcon)
+            }
+        } message: {
+            Text(SettingsStrings.Alerts.hideMenuBarIconMessage)
+        }
+        .alert(SettingsStrings.Alerts.quitAppTitle, isPresented: Binding(
+            get: { viewModel.state.showQuitConfirmation },
+            set: { _ in }
+        )) {
+            Button(SettingsStrings.Alerts.cancel, role: .cancel) {
+                viewModel.process(.cancelQuit)
+            }
+            Button(SettingsStrings.General.quit, role: .destructive) {
+                viewModel.process(.confirmQuit)
+            }
+        } message: {
+            Text(SettingsStrings.Alerts.quitAppMessage)
+        }
     }
 
     private var systemSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("STARTUP & MENU")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
-
-            BlipCard {
-                VStack(spacing: 0) {
-                    // Launch at login - Green icon
-                    if #available(macOS 13.0, *) {
-                        HStack(spacing: 12) {
-                            BlipIconView(systemName: "power", color: .green)
-
-                            Text("Start at login")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            LaunchAtLogin.Toggle()
-                                .toggleStyle(.switch)
-                                .labelsHidden()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-
-                        Group {
-                            BlipSeparator()
-                        }
-                    }
-
-                    // Enable Notification Positioning - Green icon
-                    BlipToggleRow(
-                        systemName: "hand.tap",
-                        color: .green,
-                        title: "Enable notification positioning",
-                        subtitle: "Allow Notimanager to reposition your notifications",
-                        isOn: $isEnabled
+        BlipCard {
+            VStack(spacing: 0) {
+                // Enable
+                BlipToggleRow(
+                    systemName: "bell.badge",
+                    color: .blue,
+                    title: SettingsStrings.General.enablePositioning,
+                    subtitle: nil,
+                    isOn: Binding(
+                        get: { viewModel.state.isEnabled },
+                        set: { viewModel.process(.setEnabled($0)) }
                     )
+                )
 
-                    BlipSeparator()
+                BlipSeparator()
 
-                    // Hide Menu Bar Icon - Gray icon
-                    BlipToggleRow(
-                        systemName: "menubar.rectangle",
-                        color: .gray,
-                        title: "Hide menu bar icon",
-                        subtitle: "Hide the menu bar icon. Access settings from Launchpad or Applications.",
-                        isOn: $isMenuBarIconHidden
-                    )
-                }
-            }
-        }
-    }
-
-    private var updatesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("UPDATES")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
-
-            BlipCard {
-                VStack(spacing: 0) {
-                    // Automatically check and download updates - Blue icon
-                    BlipToggleRow(
-                        systemName: "arrow.down.circle",
-                        color: .blue,
-                        title: "Automatically check and download updates",
-                        subtitle: "Notimanager will check for updates and download them automatically",
-                        isOn: $checkForUpdates
-                    )
-
-                    BlipSeparator()
-
-                    // Check for Updates Now button - Blue icon
+                // Launch at login
+                if #available(macOS 13.0, *) {
                     HStack(spacing: 12) {
-                        BlipIconView(systemName: "arrow.clockwise", color: .blue)
+                        BlipIconView(systemName: "power", color: .green)
+
+                        Text(SettingsStrings.General.launchAtLogin)
+                            .font(.system(size: 14))
+                            .foregroundStyle(.primary)
+
+                        Spacer()
+
+                        Button {
+                            SMAppService.openSystemSettingsLoginItems()
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open System Settings")
+
+                        LaunchAtLogin.Toggle()
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Group {
+                        BlipSeparator()
+                    }
+                }
+
+                // Hide Menu Bar Icon
+                BlipToggleRow(
+                    systemName: "menubar.rectangle",
+                    color: .gray,
+                    title: SettingsStrings.General.hideMenuBarIcon,
+                    subtitle: nil,
+                    isOn: Binding(
+                        get: { viewModel.state.isMenuBarIconHidden },
+                        set: { viewModel.process(.toggleMenuBarIconVisibility($0)) }
+                    )
+                )
+
+                // Icon Color - only show when menu bar icon is visible
+                if !viewModel.state.isMenuBarIconHidden {
+                    BlipSeparator()
+
+                    HStack(spacing: 12) {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(viewModel.state.iconColor.color)
+                            .frame(width: 28, height: 28)
+                            .overlay {
+                                Image(systemName: "paintpalette.fill")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.white)
+                            }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Check for updates now")
+                            Text(SettingsStrings.General.iconColor)
                                 .font(.system(size: 14))
                                 .foregroundStyle(.primary)
 
-                            Text("See if a new version is available")
+                            Text(SettingsStrings.General.iconColorSubtitle)
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }
 
                         Spacer()
 
-                        Button("Check Now…") {
-                            // Trigger update check
+                        Picker("", selection: Binding(
+                            get: { viewModel.state.iconColor },
+                            set: { viewModel.process(.setIconColor($0)) }
+                        )) {
+                            ForEach(IconColor.allCases) { color in
+                                Text(color.displayName).tag(color)
+                            }
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.regular)
+                        .pickerStyle(.menu)
+                        .frame(minWidth: 140)
+                        .labelsHidden()
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    BlipSeparator()
+                } else {
+                    BlipSeparator()
                 }
+
+                // Open Settings at Launch
+                BlipToggleRow(
+                    systemName: "gearshape",
+                    color: .blue,
+                    title: SettingsStrings.General.openSettingsAtLaunch,
+                    subtitle: nil,
+                    isOn: Binding(
+                        get: { viewModel.state.openSettingsAtLaunch },
+                        set: { viewModel.process(.setOpenSettingsAtLaunch($0)) }
+                    )
+                )
             }
         }
     }
 
-    private var applicationSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("APPLICATION")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
+    private var updatesSection: some View {
+        BlipCard {
+            VStack(spacing: 0) {
+                // Automatically check and download updates
+                BlipToggleRow(
+                    systemName: "arrow.down.circle",
+                    color: .blue,
+                    title: SettingsStrings.General.automaticUpdates,
+                    subtitle: nil,
+                    isOn: Binding(
+                        get: { viewModel.state.automaticallyChecksForUpdates },
+                        set: { viewModel.process(.setAutomaticallyChecksForUpdates($0)) }
+                    )
+                )
 
-            BlipCard {
-                BlipActionRow(
-                    systemName: "power",
-                    color: .red,
-                    title: "Quit Notimanager",
-                    subtitle: "Completely quit the Notimanager application",
-                    buttonTitle: "Quit",
+                BlipSeparator()
+
+                // Check for Updates Now button
+                BlipInfoRow(
+                    systemName: "arrow.down.circle",
+                    color: .blue,
+                    title: "Notimanager v\(UpdateManager.shared.currentAppVersion)",
+                    subtitle: viewModel.state.updateStatusMessage ?? "Last checked: \(viewModel.state.lastUpdateCheck)",
+                    buttonTitle: viewModel.state.isCheckingForUpdates ? SettingsStrings.General.checking : SettingsStrings.General.checkNow,
+                    disabled: viewModel.state.isCheckingForUpdates,
                     action: {
-                        showQuitConfirmation = true
+                        viewModel.process(.checkForUpdates)
                     }
                 )
             }
         }
     }
-}
 
-// MARK: - Quit Confirmation Dialog
-
-struct QuitConfirmationDialog: View {
-    @Binding var isPresented: Bool
-    let confirmAction: () -> Void
-
-    var body: some View {
-        Button("Quit") {
-            confirmAction()
-        }
-        .alert("Quit Notimanager?", isPresented: $isPresented) {
-            Button("Quit", role: .destructive) {
-                confirmAction()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This will completely quit Notimanager. Notification positioning will stop working until you relaunch the app.")
+    private var applicationSection: some View {
+        BlipCard {
+            BlipActionRow(
+                systemName: "power",
+                color: .red,
+                title: SettingsStrings.General.quitApp,
+                subtitle: nil,
+                buttonTitle: SettingsStrings.General.quit,
+                action: {
+                    viewModel.process(.requestQuit)
+                }
+            )
         }
     }
 }
