@@ -204,8 +204,8 @@ jobs:
 
           # Try to get changelog from CHANGELOG.md
           if [ -f "docs/CHANGELOG.md" ]; then
-            # Extract the section for this version
-            awk "/^## \[$VERSION\]/{flag=1; print} /^## \[/{if(!/^## \[$VERSION\]/) flag=0} flag" docs/CHANGELOG.md > release_notes.md
+            # Extract the section for this version, skipping the header line
+            awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{if(!/^## \[$VERSION\]/) flag=0} flag" docs/CHANGELOG.md > release_notes.md
 
             if [ -s release_notes.md ]; then
               echo "✅ Changelog extracted from CHANGELOG.md"
@@ -221,8 +221,6 @@ jobs:
 
           # Create full release notes
           cat > release_notes_full.md << EOF
-          # Notimanager $VERSION
-
           For installation instructions and documentation, please see [the README](https://github.com/abd3lraouf/Notimanager#readme).
 
           ---
