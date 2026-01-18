@@ -251,17 +251,29 @@ jobs:
           echo "📋 Release Notes:"
           cat release_notes_full.md
 
+      - name: Prepare release artifacts
+        id: artifacts
+        run: |
+          echo "📦 Preparing release artifacts..."
+          {
+            echo "RELEASE_FILES<<EOF"
+            echo "build/Notimanager-macOS.zip"
+            echo "build/Notimanager-macOS.dmg"
+            echo "updates/appcast.xml"
+            # Include deltas if they exist
+            if ls updates/*.delta 1> /dev/null 2>&1; then
+              echo "updates/*.delta"
+            fi
+            echo "EOF"
+          } >> $GITHUB_ENV
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Notimanager ${{ steps.version.outputs.version }}
           body_path: release_notes_full.md
-          files: |
-            build/Notimanager-macOS.zip
-            build/Notimanager-macOS.dmg
-            updates/appcast.xml
-            updates/*.delta
+          files: ${{ env.RELEASE_FILES }}
           fail_on_unmatched_files: true
           draft: false
           prerelease: false
