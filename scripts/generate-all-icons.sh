@@ -17,6 +17,8 @@ MENUBAR_DIR="$ASSETS_CATALOG"
 APPICON_DIR="$ASSETS_CATALOG/AppIcon.appiconset"
 
 # Colors
+DEFAULT_COLOR="#000000"
+ENABLED_COLOR="#32D74B"  # Green
 DISABLED_COLOR="#999999"
 
 echo "🎨 Notimanager Icon Generator"
@@ -35,12 +37,21 @@ fi
 
 echo "✅ Using rsvg-convert"
 
-# Function to create disabled SVG
+# Function to create colored SVG
+create_colored_svg() {
+    local input_svg="$1"
+    local output_svg="$2"
+    local color="$3"
+    # Read the SVG and replace fill color
+    sed 's/fill="currentColor"/fill="'$color'"/g' "$input_svg" > "$output_svg"
+}
+
+# Function to create disabled SVG (uses the dedicated disabled SVG)
 create_disabled_svg() {
     local input_svg="$1"
     local output_svg="$2"
-    # Read the SVG and replace fill color with gray
-    sed 's/fill="currentColor"/fill="'$DISABLED_COLOR'"/g' "$input_svg" > "$output_svg"
+    # Just copy the disabled SVG
+    cp "$input_svg" "$output_svg"
 }
 
 # Function to generate menu bar icon (16x16 and 32x32)
@@ -63,18 +74,27 @@ generate_menu_bar_icon() {
 generate_app_icon() {
     local svg_file="$1"
     local output_dir="$2"
+    local suffix="${3:-Enabled}"
 
-    echo "  → Generating app icon sizes"
+    echo "  → Generating app icon sizes ($suffix)"
 
     # All required app icon sizes for Asset Catalog
     local sizes=(16 32 64 128 256 512 1024)
 
     for size in "${sizes[@]}"; do
-        local filename="AppIcon-Enabled_${size}x${size}.png"
+        local filename="AppIcon-${suffix}_${size}x${size}.png"
         rsvg-convert -w $size -h $size "$svg_file" -o "$TEMP_DIR/$filename"
         cp "$TEMP_DIR/$filename" "$output_dir/$filename"
         echo "    Generated $filename"
     done
+}
+
+# Function to generate disabled app icon sizes
+generate_app_icon_disabled() {
+    local svg_file="$1"
+    local output_dir="$2"
+
+    generate_app_icon "$svg_file" "$output_dir" "Disabled"
 }
 
 # Function to generate .icns file
@@ -167,6 +187,10 @@ MENUBAR_IMAGESETS=(
     "MenuBarIcon-top-right.imageset"
     "MenuBarIcon-bottom-left.imageset"
     "MenuBarIcon-bottom-right.imageset"
+    "MenuBarIcon-disabled-top-left.imageset"
+    "MenuBarIcon-disabled-top-right.imageset"
+    "MenuBarIcon-disabled-bottom-left.imageset"
+    "MenuBarIcon-disabled-bottom-right.imageset"
 )
 
 for imageset in "${MENUBAR_IMAGESETS[@]}"; do
@@ -196,45 +220,42 @@ generate_menu_bar_icon \
 update_contents_json "$MENUBAR_DIR/MenuBarIcon.imageset" "MenuBarIcon"
 
 # Position-specific icons (only 4 corners)
+echo "  → Generating position icons"
+
+for position in "top-left" "top-right" "bottom-left" "bottom-right"; do
+    svg_file="$ASSETS_DIR/oui-editor-position-$position.svg"
+    icon_name="MenuBarIcon-$position"
+
+    generate_menu_bar_icon \
+        "$svg_file" \
+        "$icon_name" \
+        "$MENUBAR_DIR/$icon_name.imageset"
+
+    update_contents_json "$MENUBAR_DIR/$icon_name.imageset" "$icon_name"
+done
+
+# Disabled icon - uses the dedicated slash SVG (fallback)
 generate_menu_bar_icon \
-    "$ASSETS_DIR/oui-editor-position-top-left.svg" \
-    "MenuBarIcon-top-left" \
-    "$MENUBAR_DIR/MenuBarIcon-top-left.imageset"
-
-update_contents_json "$MENUBAR_DIR/MenuBarIcon-top-left.imageset" "MenuBarIcon-top-left"
-
-generate_menu_bar_icon \
-    "$ASSETS_DIR/oui-editor-position-top-right.svg" \
-    "MenuBarIcon-top-right" \
-    "$MENUBAR_DIR/MenuBarIcon-top-right.imageset"
-
-update_contents_json "$MENUBAR_DIR/MenuBarIcon-top-right.imageset" "MenuBarIcon-top-right"
-
-generate_menu_bar_icon \
-    "$ASSETS_DIR/oui-editor-position-bottom-left.svg" \
-    "MenuBarIcon-bottom-left" \
-    "$MENUBAR_DIR/MenuBarIcon-bottom-left.imageset"
-
-update_contents_json "$MENUBAR_DIR/MenuBarIcon-bottom-left.imageset" "MenuBarIcon-bottom-left"
-
-generate_menu_bar_icon \
-    "$ASSETS_DIR/oui-editor-position-bottom-right.svg" \
-    "MenuBarIcon-bottom-right" \
-    "$MENUBAR_DIR/MenuBarIcon-bottom-right.imageset"
-
-update_contents_json "$MENUBAR_DIR/MenuBarIcon-bottom-right.imageset" "MenuBarIcon-bottom-right"
-
-# Disabled icon
-create_disabled_svg \
-    "$ASSETS_DIR/oui-editor-position-top-right.svg" \
-    "$TEMP_DIR/disabled-icon.svg"
-
-generate_menu_bar_icon \
-    "$TEMP_DIR/disabled-icon.svg" \
+    "$ASSETS_DIR/disabled-icon.svg" \
     "MenuBarIcon-disabled" \
     "$MENUBAR_DIR/MenuBarIcon-disabled.imageset"
 
 update_contents_json "$MENUBAR_DIR/MenuBarIcon-disabled.imageset" "MenuBarIcon-disabled"
+
+# Disabled position-specific icons (with slash overlay for each position)
+echo "  → Generating disabled position icons"
+
+for position in "top-left" "top-right" "bottom-left" "bottom-right"; do
+    svg_file="$ASSETS_DIR/disabled-$position.svg"
+    icon_name="MenuBarIcon-disabled-$position"
+
+    generate_menu_bar_icon \
+        "$svg_file" \
+        "$icon_name" \
+        "$MENUBAR_DIR/$icon_name.imageset"
+
+    update_contents_json "$MENUBAR_DIR/$icon_name.imageset" "$icon_name"
+done
 
 echo "✅ Menu bar icons generated"
 
@@ -246,6 +267,11 @@ echo "🖥️  Generating App Icon..."
 
 generate_app_icon \
     "$ASSETS_DIR/oui-editor-position-top-right.svg" \
+    "$APPICON_DIR"
+
+# Generate disabled app icon (for when app is disabled)
+generate_app_icon_disabled \
+    "$ASSETS_DIR/disabled-top-right.svg" \
     "$APPICON_DIR"
 
 # Update AppIcon Contents.json
@@ -311,6 +337,66 @@ cat > "$APPICON_DIR/Contents.json" << EOF
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"
+    },
+    {
+      "filename" : "AppIcon-Disabled_16x16.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "16x16"
+    },
+    {
+      "filename" : "AppIcon-Disabled_32x32.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "16x16"
+    },
+    {
+      "filename" : "AppIcon-Disabled_32x32.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "32x32"
+    },
+    {
+      "filename" : "AppIcon-Disabled_64x64.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "32x32"
+    },
+    {
+      "filename" : "AppIcon-Disabled_128x128.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "128x128"
+    },
+    {
+      "filename" : "AppIcon-Disabled_256x256.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "128x128"
+    },
+    {
+      "filename" : "AppIcon-Disabled_256x256.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "256x256"
+    },
+    {
+      "filename" : "AppIcon-Disabled_512x512.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "256x256"
+    },
+    {
+      "filename" : "AppIcon-Disabled_512x512.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "512x512"
+    },
+    {
+      "filename" : "AppIcon-Disabled_1024x1024.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "512x512"
     }
   ],
   "info" : {
@@ -348,7 +434,7 @@ echo ""
 echo "✨ All icons generated successfully!"
 echo ""
 echo "Generated files:"
-echo "  • Menu bar icons: 5 variants (default, 4 corners, disabled)"
+echo "  • Menu bar icons: 9 variants (default, 4 corners, disabled fallback, 4 disabled with positions)"
 echo "  • App icon Asset Catalog: 7 sizes (16x16 to 1024x1024)"
 echo "  • AppIcon.icns: For System Settings and Finder"
 echo ""
