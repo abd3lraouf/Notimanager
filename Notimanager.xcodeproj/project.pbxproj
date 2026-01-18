@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		78BB662B2F196AC50080C79C /* Settings in Frameworks */ = {isa = PBXBuildFile; productRef = 78BB65722F196A010080C79C /* Settings */; };
 		78LAUNCH01 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 78LAUNCH02 /* LaunchAtLogin */; };
 		78SPARKLE01 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 78SPARKLE02 /* Sparkle */; };
 /* End PBXBuildFile section */
@@ -58,7 +57,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				78BB662B2F196AC50080C79C /* Settings in Frameworks */,
 				78LAUNCH01 /* LaunchAtLogin in Frameworks */,
 				78SPARKLE01 /* Sparkle in Frameworks */,
 			);
@@ -120,7 +118,6 @@
 			);
 			name = Notimanager;
 			packageProductDependencies = (
-				78BB65722F196A010080C79C /* Settings */,
 				78LAUNCH02 /* LaunchAtLogin */,
 				78SPARKLE02 /* Sparkle */,
 			);
@@ -175,7 +172,6 @@
 			mainGroup = 7891B9932EC9D3BE00454386;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				78BB65712F196A010080C79C /* XCRemoteSwiftPackageReference "Settings" */,
 				78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 				78SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
@@ -495,14 +491,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		78BB65712F196A010080C79C /* XCRemoteSwiftPackageReference "Settings" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sindresorhus/Settings";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 3.1.2;
-			};
-		};
 		78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin-Modern";
@@ -522,11 +510,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		78BB65722F196A010080C79C /* Settings */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 78BB65712F196A010080C79C /* XCRemoteSwiftPackageReference "Settings" */;
-			productName = Settings;
-		};
 		78LAUNCH02 /* LaunchAtLogin */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
