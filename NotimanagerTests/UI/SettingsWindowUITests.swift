@@ -130,7 +130,7 @@ final class SettingsWindowUITests: NotimanagerTestCase {
 
         // If nothing is saved, the default should be used
         if savedValue == nil {
-            let defaultPosition = NotificationPosition.topMiddle
+            let defaultPosition = NotificationPosition.topRight
             XCTAssertNotNil(defaultPosition, "Should have a default position")
         }
     }

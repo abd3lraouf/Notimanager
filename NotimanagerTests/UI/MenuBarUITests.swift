@@ -9,6 +9,28 @@ import XCTest
 import Cocoa
 @testable import Notimanager
 
+extension NSApplication {
+    func waitForWindow(withTitle title: String, timeout: TimeInterval = 2.0) -> NSWindow? {
+        let deadline = Date().addingTimeInterval(timeout)
+        var foundWindow: NSWindow? = nil
+        while Date() < deadline {
+            for window in NSApp.windows {
+                if window.title.contains(title) {
+                    print("Found window: \(window.title) (isVisible: \(window.isVisible), isKeyWindow: \(window.isKeyWindow), isMainWindow: \(window.isMainWindow))")
+                    if window.isVisible {
+                        foundWindow = window
+                        break
+                    }
+                }
+            }
+            if foundWindow != nil { break }
+            print("Waiting for window '\(title)'... Current windows: \(NSApp.windows.map { $0.title })")
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return foundWindow
+    }
+}
+
 final class MenuBarUITests: NotimanagerTestCase {
 
     // MARK: - Properties
@@ -72,8 +94,8 @@ final class MenuBarUITests: NotimanagerTestCase {
         // We verify this by checking that all NotificationPosition cases exist
         let allPositions = NotificationPosition.allCases
 
-        // Should have 9 positions
-        XCTAssertEqual(allPositions.count, 9, "Should have 9 notification positions")
+        // Should have 4 positions
+        XCTAssertEqual(allPositions.count, 4, "Should have 4 notification positions")
 
         // Verify each position has a display name
         for position in allPositions {
@@ -219,6 +241,64 @@ final class MenuBarUITests: NotimanagerTestCase {
         XCTAssertTrue(isEnabled, "Toggle enabled should update UserDefaults")
     }
 
+    // MARK: - New Tests for Menu Actions
+
+    func testMenuBarAboutActionOpensAboutPanel() {
+        // Initialize mock settings opener
+        let mockSettingsOpener = MockSettingsOpener()
+
+        // Initialize the manager with the mock
+        let manager = AppKitMenuBarManager(settingsOpener: mockSettingsOpener)
+        manager.setupMenuBar() // Ensure menu is built
+
+        guard let menu = manager.statusItem?.menu else {
+            XCTFail("Menu not found")
+            return
+        }
+
+        guard let aboutMenuItem = menu.item(withTitle: "About Notimanager"),
+              let action = aboutMenuItem.action,
+              let target = aboutMenuItem.target else {
+            XCTFail("About Notimanager menu item or its action/target not found")
+            return
+        }
+
+        // Simulate the click
+        NSApp.sendAction(action, to: target, from: aboutMenuItem)
+        
+        // Assert that the mock's openSettings was called with the correct tab
+        XCTAssertTrue(mockSettingsOpener.openSettingsCalled, "openSettings was not called on the mock for About")
+        XCTAssertEqual(mockSettingsOpener.lastOpenedTab, "help", "Incorrect tab opened for About")
+    }
+
+    func testMenuBarPreferencesActionOpensPreferencesWindow() {
+        // Initialize mock settings opener
+        let mockSettingsOpener = MockSettingsOpener()
+
+        // Initialize the manager with the mock
+        let manager = AppKitMenuBarManager(settingsOpener: mockSettingsOpener)
+        manager.setupMenuBar() // Ensure menu is built
+        
+        guard let menu = manager.statusItem?.menu else {
+            XCTFail("Menu not found")
+            return
+        }
+
+        guard let prefsMenuItem = menu.item(withTitle: "Preferences…"),
+              let action = prefsMenuItem.action,
+              let target = prefsMenuItem.target else {
+            XCTFail("Preferences… menu item or its action/target not found")
+            return
+        }
+
+        // Simulate the click
+        NSApp.sendAction(action, to: target, from: prefsMenuItem)
+        
+        // Assert that the mock's openSettings was called with the correct tab
+        XCTAssertTrue(mockSettingsOpener.openSettingsCalled, "openSettings was not called on the mock for Preferences")
+        XCTAssertEqual(mockSettingsOpener.lastOpenedTab, "general", "Incorrect tab opened for Preferences")
+    }
+
     // MARK: - Menu Bar Menu Structure Tests
 
     func testMenuBarMenuStructure() {
@@ -237,7 +317,7 @@ final class MenuBarUITests: NotimanagerTestCase {
         // - 1 Quit
         // Total: 9 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 = 17 items
 
-        let expectedItemCount = 9 // position items
+        let expectedItemCount = 4 // position items
         XCTAssertEqual(allPositions.count, expectedItemCount, "Should have \(expectedItemCount) position menu items")
     }
 
@@ -249,5 +329,17 @@ final class MenuBarUITests: NotimanagerTestCase {
         let app = NSApplication.shared
 
         XCTAssertNotNil(app, "NSApplication should be available for keyboard shortcuts")
+    }
+}
+
+// MARK: - Mock Settings Opener for Testing
+
+class MockSettingsOpener: SettingsOpening {
+    var openSettingsCalled = false
+    var lastOpenedTab: String? = nil
+    
+    func openSettings(tab: String) {
+        openSettingsCalled = true
+        lastOpenedTab = tab
     }
 }

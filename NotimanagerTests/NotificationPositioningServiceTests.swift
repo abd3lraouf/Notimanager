@@ -71,23 +71,6 @@ final class NotificationPositioningServiceTests: XCTestCase {
         XCTAssertEqual(pos.y, 900)
     }
     
-    func testDeadCenter() {
-        // Not used anymore - only 4 corner positions exist
-        // This test can be removed or updated to test a corner position instead
-        let pos = service.calculatePosition(
-            currentPosition: .topRight,
-            notifSize: notifSize,
-            padding: padding,
-            visibleFrame: visibleFrame,
-            fullFrame: fullFrame
-        )
-        // Top Right position - right side with padding
-        // SafeRight = 1920 - padding = 1890
-        // X = 1890 - 300 = 1590
-        // Y = SafeTop + padding = 24
-        XCTAssertEqual(pos.x, 1590)
-        XCTAssertEqual(pos.y, 24)
-    }
     
     func testSecondaryScreen() {
         // Secondary Screen (e.g. Right of main)
