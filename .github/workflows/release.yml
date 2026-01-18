@@ -216,58 +216,18 @@ jobs:
 
           # Create full release notes
           cat > release_notes_full.md << EOF
-          # 🎉 Notimanager $VERSION
+          # Notimanager $VERSION
 
-          ## Installation Instructions
-
-          **First-time installation:**
-
-          ### Option 1: DMG Installer (Recommended)
-
-          1. Download `Notimanager-macOS.dmg`
-          2. Open the DMG file
-          3. Drag Notimanager to the Applications folder
-          4. Right-click the app and select "Open" (bypasses Gatekeeper)
-          5. Launch and grant Accessibility permissions in System Settings
-
-          ### Option 2: ZIP Archive
-
-          1. Download `Notimanager-macOS.zip`
-          3. Move to Applications:
-             ```bash
-             mv Notimanager.app /Applications/
-             ```
-          4. Launch and grant Accessibility permissions in System Settings
-
-          For detailed installation instructions, see [docs/INSTALLATION.md](https://github.com/abd3lraouf/Notimanager/blob/main/docs/INSTALLATION.md)
+          For installation instructions and documentation, please see [the README](https://github.com/abd3lraouf/Notimanager#readme).
 
           ---
-
-          ## What's Changed
 
           EOF
 
           cat release_notes.md >> release_notes_full.md
 
-          # Add upgrade instructions
+          # Add full changelog link
           cat >> release_notes_full.md << 'EOF'
-
-          ---
-
-          ## 🔄 Upgrading
-
-          If you have a previous version installed:
-          1. Quit Notimanager (menu bar icon → Quit)
-          2. Replace the old app in `/Applications/Notimanager.app`
-          3. Launch the new version
-          4. Your settings will be preserved
-
-          ## 🙏 Acknowledgments
-
-          Thank you for using Notimanager! If you find this app useful, please consider:
-          - ⭐ Starring the repository on GitHub
-          - 🐛 Reporting issues or suggesting features
-          - 💬 Sharing feedback
 
           ---
           **Full Changelog**: https://github.com/abd3lraouf/Notimanager/compare/$PREV_TAG...v$VERSION

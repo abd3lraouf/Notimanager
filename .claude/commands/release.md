@@ -56,7 +56,7 @@ Before starting the release, verify:
 
 - [ ] Working directory is clean (no uncommitted changes)
 - [ ] We are on the `main` branch (or ask if they want to release from current branch)
-- [ ] CHANGELOG.md is up to date with an `[Unreleased]` section or a section for NEW_VERSION
+- [ ] docs/CHANGELOG.md is up to date with an `[Unreleased]` section or a section for NEW_VERSION
 
 **If working directory is NOT clean**:
 1. Show the user the uncommitted changes: !`git diff --stat`
@@ -71,9 +71,9 @@ Ask: "You're on the current branch, not main. Continue with release from this br
 **Check CHANGELOG**:
 !`cat docs/CHANGELOG.md 2>/dev/null || cat CHANGELOG.md 2>/dev/null || echo "CHANGELOG.md not found"`
 
-If CHANGELOG doesn't have an entry for NEW_VERSION, ask: "CHANGELOG.md doesn't have an entry for version NEW_VERSION. Would you like to:
+If docs/CHANGELOG.md doesn't have an entry for NEW_VERSION, ask: "docs/CHANGELOG.md doesn't have an entry for version NEW_VERSION. Would you like to:
    a) Add it now (you'll need to describe the changes)
-   b) Proceed without updating CHANGELOG
+   b) Proceed without updating docs/CHANGELOG.md
    c) Cancel release"
 
 ### Step 3: Review Recent Changes
@@ -105,30 +105,47 @@ Tell the user you're about to update Info.plist, then execute:
 
 **Verify** the changes: !`/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Notimanager/Resources/Info.plist`
 
-### Step 5: Update CHANGELOG.md
+### Step 5: Update docs/CHANGELOG.md
 
-Ensure CHANGELOG.md has the version entry. The format should be:
+Ensure docs/CHANGELOG.md has a high-quality entry for the new version.
 
+**Guiding Principles (Keep a Changelog)**:
+1.  **For Humans, Not Machines**: Do not simply dump git logs. Write clear sentences.
+2.  **Group by Type**: Organize changes into the following sections:
+    -   `### Added` for new features.
+    -   `### Changed` for changes in existing functionality.
+    -   `### Deprecated` for soon-to-be removed features.
+    -   `### Removed` for now removed features.
+    -   `### Fixed` for any bug fixes.
+    -   `### Security` in case of vulnerabilities.
+3.  **One Bullet Per Value**: Group multiple related commits into a single bullet point.
+    -   *Bad*: "- Fix login css", "- Fix login logic", "- Refactor login"
+    -   *Good*: "- Improved login flow reliability and styling"
+4.  **Mention Breaking Changes**: Explicitly state if an upgrade step is required.
+
+**Action**:
+1. Check `docs/CHANGELOG.md`.
+2. If `[Unreleased]` section exists, rename it to `[NEW_VERSION] - YYYY-MM-DD`.
+3. Review the git log: `git log --pretty=format:"%s" $(git describe --tags --abbrev=0 HEAD^)..HEAD`
+4. **Synthesize** the log into the structured format above.
+5. Create the new entry.
+
+**Example Format**:
 ```markdown
 ## [NEW_VERSION] - YYYY-MM-DD
 
-### ✨ New Features
-- Feature 1
-- Feature 2
+### Added
+- New "Sleep Mode" to pause notifications for 1 hour.
 
-### 🔧 Improvements
-- Improvement 1
-
-### 🐛 Bug Fixes
-- Bug fix 1
+### Fixed
+- Crash when opening settings on macOS Ventura.
+- UI glitch in dark mode for alert toasts.
 ```
 
-**If the entry exists but has the wrong date**, update the date to today: !`date +"%Y-%m-%d"`
+**Crucial Advice for the Agent**:
+- **Filter Noise**: Ignore `chore`, `docs`, `test` commits unless they are significant to the *user*.
+- **Verify**: Ask the user: "I've grouped the changes into the changelog. Does this look accurate?"
 
-**If the entry doesn't exist**, help the user create it by:
-1. Asking them to describe the main changes
-2. Offering to extract from git commit messages
-3. Creating a properly formatted entry
 
 ### Step 6: Review All Changes
 
@@ -155,11 +172,11 @@ Show a diff of the changes:
 Create a conventional commit for the release:
 
 ```bash
-git add Notimanager/Resources/Info.plist CHANGELOG.md docs/CHANGELOG.md
+git add Notimanager/Resources/Info.plist docs/CHANGELOG.md
 git commit -m "chore(release): prepare release vNEW_VERSION
 
 - Update version to NEW_VERSION in Info.plist
-- Update CHANGELOG.md for NEW_VERSION release
+- Update docs/CHANGELOG.md for NEW_VERSION release
 "
 ```
 
@@ -247,4 +264,4 @@ After successful release, ask:
 - Tag format must be `vNEW_VERSION` (with 'v' prefix)
 - The CI workflow automatically builds on tag push
 - Never force push tags
-- Ensure CHANGELOG.md follows Keep a Changelog format
+- Ensure docs/CHANGELOG.md follows Keep a Changelog format
