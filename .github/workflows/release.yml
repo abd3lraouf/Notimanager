@@ -153,9 +153,8 @@ jobs:
           # Export the private key from secrets (base64 encoded)
           if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
             echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | base64 -d > sparkle_private_key.pem
-            # Import to keychain
-            security import sparkle_private_key.pem -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
-            echo "✅ Sparkle private key imported"
+            chmod 600 sparkle_private_key.pem
+            echo "✅ Sparkle private key decoded"
           else
             echo "⚠️  No SPARKLE_PRIVATE_KEY found - appcast will not be signed"
           fi
@@ -173,7 +172,8 @@ jobs:
 
           # Generate appcast with signing if key is available
           if [ -f "sparkle_private_key.pem" ]; then
-            ./tools/generate_appcast updates || echo "⚠️  Appcast generation completed with warnings"
+            echo "📝 Signing appcast with private key..."
+            ./tools/generate_appcast updates --key sparkle_private_key.pem || echo "⚠️  Appcast generation completed with warnings"
           else
             echo "⚠️  Generating appcast without signature (development only)"
             ./tools/generate_appcast updates || true
