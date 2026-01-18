@@ -3,93 +3,43 @@
 //  Notimanager
 //
 //  Created on 2025-01-15.
-//  ViewModel for permission screen - manages accessibility permission state
+//  ViewModel for permission screen - manages accessibility permission state.
+//  Updated for SwiftUI with @Published properties.
 //
 
+import Foundation
+import Combine
 import Cocoa
 
-/// ViewModel for PermissionViewController
-class PermissionViewModel {
+/// ViewModel for PermissionView (SwiftUI)
+@available(macOS 10.15, *)
+class PermissionViewModel: ObservableObject {
 
-    // MARK: - Callbacks
+    // MARK: - Published Properties
 
-    var onPermissionStatusChanged: ((Bool) -> Void)?
-    var onPermissionRequested: (() -> Void)?
-
-    // MARK: - Properties
-
-    var isAccessibilityGranted: Bool {
-        return AXIsProcessTrusted()
-    }
+    @Published var isAccessibilityGranted: Bool = false
+    @Published var isWaitingForPermission: Bool = false
 
     // MARK: - Initialization
 
-    init() {}
+    init() {
+        self.isAccessibilityGranted = AXIsProcessTrusted()
+    }
 
     // MARK: - Permission Management
 
     func requestAccessibilityPermission() {
         debugLog("User requested accessibility permission")
 
+        isWaitingForPermission = true
+
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
         _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
-
-        onPermissionRequested?()
-    }
-
-    func resetAccessibilityPermission() {
-        debugLog("User requested to clear accessibility permissions")
-
-        let alert = NSAlert()
-        alert.messageText = "Clear Permission?"
-        alert.informativeText = """
-        This will clear Notimanager's accessibility permission.
-
-        What happens next:
-        • Accessibility permission will be reset
-        • You'll need to grant permission again
-        • The app will continue running
-
-        This is useful for troubleshooting permission issues.
-        """
-        alert.alertStyle = .warning
-        alert.icon = NSImage(systemSymbolName: "trash", accessibilityDescription: "Clear")
-        alert.addButton(withTitle: "Clear Permission")
-        alert.addButton(withTitle: "Cancel")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            debugLog("Clearing accessibility permissions...")
-
-            // Run tccutil to reset permissions
-            let task = Process()
-            task.launchPath = "/usr/bin/tccutil"
-            task.arguments = ["reset", "Accessibility", "dev.abd3lraouf.notimanager"]
-
-            do {
-                try task.run()
-                task.waitUntilExit()
-
-                debugLog("Permission cleared successfully")
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    let success = NSAlert()
-                    success.messageText = "Permission Cleared"
-                    success.informativeText = "Accessibility permission has been reset.\n\nYou can grant it again using the button below."
-                    success.alertStyle = .informational
-                    success.runModal()
-
-                    // Update permission status
-                    self.updatePermissionStatus(granted: false)
-                }
-            } catch {
-                debugLog("Failed to clear permission: \(error)")
-                self.showError("Failed to clear permission: \(error.localizedDescription)")
-            }
-        }
     }
 
     func updatePermissionStatus(granted: Bool) {
-        onPermissionStatusChanged?(granted)
+        isAccessibilityGranted = granted
+        isWaitingForPermission = false
     }
 
     func restartApp() {
@@ -103,12 +53,5 @@ class PermissionViewModel {
 
     private func debugLog(_ message: String) {
         LoggingService.shared.debug(message)
-    }
-
-    private func showError(_ message: String) {
-        let alert = NSAlert()
-        alert.messageText = "Error"
-        alert.informativeText = message
-        alert.runModal()
     }
 }

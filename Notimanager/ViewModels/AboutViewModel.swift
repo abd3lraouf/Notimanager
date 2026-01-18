@@ -39,16 +39,31 @@ final class AboutViewModel {
         return "abd3lraouf"
     }
 
-    var githubURL: URL {
+    /// Your personal GitHub profile URL
+    var personalGitHubURL: URL {
+        return URL(string: "https://github.com/\(githubUsername)")!
+    }
+
+    /// Notimanager repository URL
+    var repositoryURL: URL {
         return URL(string: "https://github.com/\(githubUsername)/notimanager")!
     }
 
+    var githubURL: URL {
+        return repositoryURL
+    }
+
     var websiteURL: URL? {
-        return URL(string: "https://github.com/\(githubUsername)/notimanager")
+        return repositoryURL
     }
 
     var license: String {
         return "MIT"
+    }
+
+    /// License file URL on GitHub
+    var licenseURL: URL {
+        return URL(string: "\(repositoryURL)/blob/main/LICENSE")!
     }
 
     // MARK: - Initialization

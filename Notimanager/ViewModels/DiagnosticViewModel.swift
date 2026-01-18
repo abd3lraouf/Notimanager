@@ -3,18 +3,21 @@
 //  Notimanager
 //
 //  Created on 2025-01-15.
-//  ViewModel for diagnostic screen - manages API testing and diagnostics
+//  ViewModel for diagnostic screen - manages API testing and diagnostics.
+//  Updated for SwiftUI with @Published properties.
 //
 
+import Foundation
+import Combine
 import Cocoa
 
-/// ViewModel for DiagnosticViewController
-class DiagnosticViewModel {
+/// ViewModel for DiagnosticView (SwiftUI)
+@available(macOS 10.15, *)
+class DiagnosticViewModel: ObservableObject {
 
-    // MARK: - Callbacks
+    // MARK: - Published Properties
 
-    var onLogMessage: ((String) -> Void)?
-    var onOutputCleared: (() -> Void)?
+    @Published var output: String = ""
 
     // MARK: - Properties
 
@@ -23,6 +26,8 @@ class DiagnosticViewModel {
 
     private var lastWindowElement: AXUIElement?
     private var lastNotificationElement: AXUIElement?
+
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Initialization
 
@@ -59,7 +64,9 @@ class DiagnosticViewModel {
     // MARK: - Logging
 
     func log(_ message: String) {
-        onLogMessage?(message)
+        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+        let line = "[\(timestamp)] \(message)\n"
+        output += line
         debugLog(message)
     }
 
@@ -68,7 +75,7 @@ class DiagnosticViewModel {
     }
 
     func clearOutput() {
-        onOutputCleared?()
+        output = ""
         log("Output cleared")
     }
 
@@ -400,6 +407,57 @@ class DiagnosticViewModel {
 
     func testMultipleNotifications() {
         log("📚 Testing Multiple Notification Stacking...")
+        log("   Sending simulated notifications from different 'apps'...")
+        
+        // 1. Send simulated notifications
+        let service = TestNotificationService.shared
+        
+        // Notification 1: Calendar
+        service.sendSimulatedNotification(
+            title: "Calendar",
+            subtitle: "Meeting in 5 min",
+            body: "Team Sync - Review Q1 Goals",
+            threadID: "com.apple.calendar",
+            delay: 0.5
+        )
+        
+        // Notification 2: Messages
+        service.sendSimulatedNotification(
+            title: "Messages",
+            subtitle: "Sarah Johnson",
+            body: "Hey, are we still on for lunch?",
+            threadID: "com.apple.MobileSMS",
+            delay: 1.0
+        )
+        
+        // Notification 3: Mail
+        service.sendSimulatedNotification(
+            title: "Mail",
+            subtitle: "DevOps Team",
+            body: "Build failed: PR #1234 - Check logs",
+            threadID: "com.apple.mail",
+            delay: 1.5
+        )
+        
+        // Notification 4: Reminders
+        service.sendSimulatedNotification(
+            title: "Reminders",
+            subtitle: "Groceries",
+            body: "Buy milk and coffee beans",
+            threadID: "com.apple.reminders",
+            delay: 2.0
+        )
+        
+        log("   ⏳ Waiting for notifications to appear (4s)...")
+        
+        // 2. Analyze after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+            self?.analyzeStackedNotifications()
+        }
+    }
+
+    private func analyzeStackedNotifications() {
+        log("🔍 Analyzing stacking behavior...")
 
         guard let pid = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == notificationCenterBundleID
@@ -429,7 +487,7 @@ class DiagnosticViewModel {
 
         if notificationWindows.isEmpty {
             log("ℹ️ No notification windows found")
-            log("💡 Send multiple test notifications to see stacking behavior")
+            log("💡 Notifications might have been dismissed or hidden")
             log("")
             return
         }
