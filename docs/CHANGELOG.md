@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
-## [1.4.0] - TBD
+## [2.0.0] - 2026-01-18
 
 ### ✨ New Features
 - **Automatic Updates**: Integrated Sparkle 2.x framework for automatic update checking and installation
@@ -19,19 +19,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatically download updates
 - **Check for Updates**: Menu bar item to manually check for updates
 - **UpdateManager**: New service for managing Sparkle updater functionality
+- **Clean Architecture**: Complete app restructure following Clean Architecture principles
+  - **Domain Layer**: Business logic with use cases and entities
+  - **Data Layer**: Repository pattern for data access
+  - **Presentation Layer**: MVVM pattern with SwiftUI
+- **SwiftUI Migration**: Major UI migration from UIKit to SwiftUI
+  - SwiftUI views for Settings, MenuBar, Diagnostics, and Permissions
+  - ObservableObject ViewModels for reactive state management
+  - Advanced settings with integrated log viewer
+- **AppStore**: Global state management for application-wide data
+- **Utility Managers**: Comprehensive manager system for app services
+- **Disabled State Icons**: Added app icons for disabled/enabled states
 
 ### 🔧 Improvements
 - **Signed Updates**: All releases will be EdDSA-signed for security
 - **GitHub Actions**: Enhanced release workflow with appcast generation
 - **GitHub Pages**: Automatic deployment of appcast.xml for updates
+- **Extracted Services**: Better separation of concerns with dedicated logging and file managers
+- **Removed Redundant Features**: Cleaned up unused keyboard shortcuts implementation
 
 ### 🛠️ Developer Experience
 - **Setup Script**: Automated `scripts/setup-sparkle.sh` for complete Sparkle setup
 - **Documentation**: Comprehensive `docs/SPARKLE_SETUP.md` with step-by-step instructions
+- **Enhanced Icons**: Complete set of disabled state app icons
+- **Better Testing**: Updated UI tests for SwiftUI migration
 
 ### 🔒 Security
 - **EdDSA Signatures**: Update archives are signed with Ed25519 keys
 - **Signature Verification**: All updates are verified before installation
+
+### 🐛 Fixed
+- Menu bar About item now opens standard About panel on older macOS versions
 
 ## [1.3.0] - 2026-01-17
 
