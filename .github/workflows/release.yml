@@ -35,9 +35,10 @@ jobs:
           # Download Sparkle tools for generate_appcast
           wget https://github.com/sparkle-project/Sparkle/releases/download/2.7.0/Sparkle-2.7.0.tar.xz -O sparkle.tar.xz
           tar xf sparkle.tar.xz
-          mkdir -p bin
-          cp Sparkle/bin/generate_appcast bin/
-          chmod +x bin/generate_appcast
+          mkdir -p tools
+          # Note: Sparkle 2.x tar.xz extracts directly (bin/, Sparkle.framework/), not into a Sparkle/ subdirectory
+          cp bin/generate_appcast tools/
+          chmod +x tools/generate_appcast
           echo "✅ Sparkle tools installed"
 
       - name: Extract version from tag
@@ -172,10 +173,10 @@ jobs:
 
           # Generate appcast with signing if key is available
           if [ -f "sparkle_private_key.pem" ]; then
-            ./bin/generate_appcast updates || echo "⚠️  Appcast generation completed with warnings"
+            ./tools/generate_appcast updates || echo "⚠️  Appcast generation completed with warnings"
           else
             echo "⚠️  Generating appcast without signature (development only)"
-            ./bin/generate_appcast updates || true
+            ./tools/generate_appcast updates || true
           fi
 
           # Show the generated appcast
