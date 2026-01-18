@@ -1,11 +1,13 @@
 ---
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git diff --cached:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git ls-files:*), Bash(git config:*)
-description: Create a conventional commit with dynamic analysis and bullet-pointed body
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git diff --cached:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git ls-files:*), Bash(git config:*), Bash(git reset HEAD:*), Bash(git restore --staged:*)
+description: Create atomic conventional commits with dynamic analysis and bullet-pointed body
 ---
 
-# Conventional Commit Creator
+# Atomic Conventional Commit Creator
 
-Create a git commit following the Conventional Commits specification (https://www.conventionalcommits.org/).
+Create git commits following the Conventional Commits specification (https://www.conventionalcommits.org/).
+
+**This command will create as many atomic commits as needed** to properly group related changes together. Each commit should be a self-contained unit that can be understood and reverted independently.
 
 ## Available Commit Types
 
@@ -24,10 +26,36 @@ Choose the most appropriate type:
 
 ## Your Task
 
-1. **Analyze the changes** by examining the git context below
-2. **Determine the appropriate commit type** based on what changed
-3. **Write a clear, concise subject** in imperative mood (e.g., "add feature" not "added feature")
-4. **Create a detailed body** with bullet points explaining what changed
+1. **Analyze ALL changes** by examining the git context below
+2. **Group related changes** into logical atomic commits
+3. **For each group**, determine the appropriate commit type and create a commit message
+4. **Write clear, concise subjects** in imperative mood (e.g., "add feature" not "added feature")
+5. **Create detailed bodies** with bullet points explaining what changed in each commit
+
+## Atomic Commit Principles
+
+When grouping changes into commits, follow these principles:
+
+- **Logical Cohesion**: Each commit should contain changes that are logically related
+- **Buildability**: Each commit should leave the codebase in a working state
+- **Revertibility**: Each commit should be independently revertible
+- **Testability**: Each commit should be testable on its own
+- **Size**: Commits should be as small as possible while still being complete
+
+## Grouping Strategy
+
+Group changes by:
+1. **Feature/Functionality**: All changes for a single feature
+2. **File Type**: Swift files, tests, docs, resources separately
+3. **Component/Module**: Changes to different components separately
+4. **Intent**: bug fixes separate from new features separate from refactoring
+5. **Layer**: Model changes separate from view changes separate from controller changes
+
+**Example grouping:**
+- Commit 1: Add new model (feat)
+- Commit 2: Add tests for the model (test)
+- Commit 3: Update views to use the model (feat)
+- Commit 4: Update documentation (docs)
 
 ## Git Context
 
@@ -91,27 +119,47 @@ Follow this structure:
 
 ## Analysis Checklist
 
-Before creating the commit, analyze:
+Before creating commits, analyze:
 
 - [ ] What files changed? (Swift, tests, resources, docs, configs)
-- [ ] What is the primary intent of these changes?
-- [ ] Which commit type best represents this intent?
-- [ ] Is there a clear scope/module affected?
-- [ ] What are the specific changes that need to be listed?
+- [ ] What are the logical groupings of these changes?
+- [ ] For each group, what is the primary intent?
+- [ ] Which commit type best represents each group's intent?
+- [ ] What are the specific changes that need to be listed in each commit?
+- [ ] Can each commit stand alone and be reverted independently?
 
 ## Example Output
 
-For a feature adding authentication:
-```
-feat(auth): add OAuth2 login support
+For a feature adding authentication (grouped into 3 atomic commits):
 
-- Add OAuth2 authentication flow with Google provider
+**Commit 1:**
+```
+feat(auth): add OAuth2 authentication flow
+
+- Add OAuth2 authentication with Google provider
 - Implement token storage in Keychain
-- Create LoginViewController with social login buttons
-- Add authentication state manager
+- Create authentication state manager
 - Update app delegate to handle auth callbacks
 
 Closes #123
+```
+
+**Commit 2:**
+```
+test(auth): add tests for OAuth2 authentication
+
+- Add unit tests for OAuth2 flow
+- Add tests for token storage
+- Add tests for authentication state manager
+```
+
+**Commit 3:**
+```
+feat(ui): add login view with social login buttons
+
+- Create LoginViewController with social login buttons
+- Add login form validation
+- Implement error display for failed authentication
 ```
 
 For a bug fix:
@@ -136,12 +184,48 @@ refactor(coordinator): extract common navigation logic
 
 ## Execution Steps
 
-1. Review all git context above
-2. Analyze changes to determine type, scope, and content
-3. If no files are staged, ask user if they want to stage all changes
-4. Present the proposed commit message clearly formatted
-5. Ask for user confirmation
-6. If confirmed, stage any unstaged changes that are part of this commit, then create the commit with `git commit -m "<message>"`
-7. Report the commit SHA and success message
+1. **Review all git context** above
+2. **Analyze ALL changes** and determine logical groupings
+3. **Create commit plan** showing all proposed atomic commits with their messages
+4. **Ask for user confirmation** on the plan
+5. **Execute commits sequentially**:
+   - Stage only the files for the current commit
+   - Create the commit with `git commit -m "<message>"`
+   - Report the commit SHA
+   - Move to the next commit
+6. **Handle any conflicts** or issues during commit creation
 
-IMPORTANT: Always get explicit confirmation before creating the commit. Display the full commit message and ask "Create this commit? (y/N):"
+IMPORTANT: Always get explicit confirmation before creating commits. Display the full plan with all commit messages and ask "Create these commits? (y/N):"
+
+## Commit Plan Template
+
+When presenting the plan, use this format:
+
+```
+I'll create <N> atomic commits:
+
+Commit 1: <type>(<scope>): <subject>
+Files: <list of files>
+
+<full commit message>
+
+---
+
+Commit 2: <type>(<scope>): <subject>
+Files: <list of files>
+
+<full commit message>
+
+---
+
+[continue for all commits]
+```
+
+## Staging Strategy
+
+When creating multiple commits:
+- Use `git add <files>` to stage only files for the current commit
+- If files need partial changes, use `git add -p <file>` for interactive staging
+- After committing, stage the next group of files
+- Continue until all groups are committed
+- If any unstaged changes remain, notify the user
