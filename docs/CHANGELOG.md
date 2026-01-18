@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
+## [2.0.1] - 2026-01-18
+
+### 🐛 Fixed
+- **GitHub Pages Deployment**: Fixed automatic deployment trigger for appcast.xml
+  - Changed from `release:published` to `workflow_run:completed` to ensure deployment works with GITHUB_TOKEN
+  - Fixed tag resolution to use `workflow_run.head_branch` for tag pushes
+- **Release Notes Formatting**: Improved changelog extraction to skip duplicate header lines
+
 ## [2.0.0] - 2026-01-18
 
 ### ✨ New Features
