@@ -100,40 +100,7 @@ This appears because the app uses ad-hoc signing. To bypass:
 
 ## Building from Source
 
-If you prefer to build from source or want to verify the code:
-
-### Requirements
-
-- macOS 14.0 or later
-- Xcode 15.0 or later
-- Command Line Tools for Xcode
-
-### Steps
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/abd3lraouf/Notimanager.git
-   cd Notimanager
-   ```
-
-2. **Open in Xcode**:
-   ```bash
-   open Notimanager.xcodeproj
-   ```
-
-3. **Build and run**:
-   - Press `⌘R` to build and run in development mode
-   - Or select **Product** → **Archive** for a release build
-
-4. **For a release build**:
-   - Select **Product** → **Archive**
-   - Once complete, click **Distribute App**
-   - Choose **Copy App**
-   - The exported app will be signed with your development certificate
-
-### Self-Signed Certificate for Local Builds
-
-Local builds will use your development certificate automatically. No special setup is required.
+If you prefer to build the app from source code, please refer to the **[Developer Guide](DEVELOPMENT.md)** for detailed instructions.
 
 ## Security & Verification
 
