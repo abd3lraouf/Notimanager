@@ -145,19 +145,6 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Sparkle signing key
-        run: |
-          echo "🔑 Setting up Sparkle signing key..."
-          # Export the private key from secrets (base64 encoded)
-          if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
-            echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | base64 -d > sparkle_private_key.pem
-            # Import to keychain using Sparkle's tool (handles EdDSA keys correctly)
-            ./bin/generate_keys -f sparkle_private_key.pem
-            echo "✅ Sparkle private key imported"
-          else
-            echo "⚠️  No SPARKLE_PRIVATE_KEY found - appcast will not be signed"
-          fi
-
       - name: Generate appcast
         run: |
           echo "📡 Generating Sparkle appcast..."
@@ -169,10 +156,21 @@ jobs:
           # Copy DMG to updates folder
           cp build/Notimanager-macOS.dmg "updates/Notimanager-${VERSION}.dmg"
 
-          # Generate appcast (automatically uses key from keychain)
-          if [ -f "sparkle_private_key.pem" ]; then
-            echo "📝 Generating signed appcast..."
-            ./bin/generate_appcast updates
+          # Download previous release DMG for delta generation
+          echo "⬇️ Downloading previous release for delta generation..."
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "Found previous tag: $PREV_TAG"
+            gh release download "$PREV_TAG" -p "*.dmg" -D updates || echo "⚠️ Could not download previous release artifacts"
+          else
+            echo "⚠️ No previous tag found, skipping delta generation"
+          fi
+
+          # Generate appcast
+          if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
+            echo "📝 Signing appcast with private key (file-based)..."
+            echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | base64 -d > sparkle_private_key.pem
+            ./bin/generate_appcast updates --ed-key-file sparkle_private_key.pem
           else
             echo "⚠️  Generating appcast without signature (development only)"
             ./bin/generate_appcast updates
@@ -184,6 +182,11 @@ jobs:
             # Replace local filename with full GitHub Release URL
             # Pattern: url="Notimanager-1.2.3.dmg" -> url="https://github.com/.../v1.2.3/Notimanager-1.2.3.dmg"
             sed -i '' "s|url=\"Notimanager-${VERSION}.dmg\"|url=\"https://github.com/abd3lraouf/Notimanager/releases/download/v${VERSION}/Notimanager-${VERSION}.dmg\"|g" updates/appcast.xml
+            
+            # Patch delta update URLs
+            # Pattern: url="Notimanager-1.0-2.0.delta" -> url="https://github.com/.../v2.0/Notimanager-1.0-2.0.delta"
+            sed -i '' "s|url=\"\([^\" ]*\.delta\)\"|url=\"https://github.com/abd3lraouf/Notimanager/releases/download/v${VERSION}/\1\"|g" updates/appcast.xml
+
             echo "✅ Appcast patched"
             cat updates/appcast.xml
           fi
@@ -258,6 +261,7 @@ jobs:
             build/Notimanager-macOS.zip
             build/Notimanager-macOS.dmg
             updates/appcast.xml
+            updates/*.delta
           fail_on_unmatched_files: true
           draft: false
           prerelease: false
