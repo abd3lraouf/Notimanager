@@ -29,7 +29,7 @@
 	<key>NSUserNotificationAlertStyle</key>
 	<string>alert</string>
 	<key>SUFeedURL</key>
-	<string>https://abd3lraouf.github.io/Notimanager/appcast.xml</string>
+	<string>https://github.com/abd3lraouf/Notimanager/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>fV/kG1YpTdscZDD3brSMaHdar/Seec5oYwiBnwvRENY=</string>
 </dict>
