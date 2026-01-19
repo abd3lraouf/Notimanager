@@ -145,6 +145,14 @@ jobs:
             exit 1
           fi
 
+      - name: Rename DMG with version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "📝 Renaming DMG to include version..."
+          mv "build/Notimanager-macOS.dmg" "build/Notimanager-${VERSION}.dmg"
+          echo "✅ DMG renamed to Notimanager-${VERSION}.dmg"
+          ls -lh "build/Notimanager-${VERSION}.dmg"
+
       - name: Generate appcast
         run: |
           echo "📡 Generating Sparkle appcast..."
@@ -154,7 +162,7 @@ jobs:
           mkdir -p updates
 
           # Copy DMG to updates folder
-          cp build/Notimanager-macOS.dmg "updates/Notimanager-${VERSION}.dmg"
+          cp "build/Notimanager-${VERSION}.dmg" "updates/Notimanager-${VERSION}.dmg"
 
           # Download previous release DMG for delta generation
           echo "⬇️ Downloading previous release for delta generation..."
@@ -201,27 +209,50 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          echo "📋 Generating changelog..."
+          echo "📋 Generating cumulative changelog for Sparkle..."
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Try to get changelog from CHANGELOG.md
+          # Extract cumulative changelog from CHANGELOG.md
+          # Get ALL version entries from the top until we hit unreleased or end
+          # This provides users updating from older versions with full context
           if [ -f "docs/CHANGELOG.md" ]; then
-            # Extract the section for this version, skipping the header line
-            awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{if(!/^## \[$VERSION\]/) flag=0} flag" docs/CHANGELOG.md > release_notes.md
+            # Extract all released versions (skip [Unreleased])
+            # Start from first version header, stop at [Unreleased] or EOF
+            awk '
+              BEGIN { found_first = 0 }
+              /^## \[/ {
+                if ($0 ~ /Unreleased/) {
+                  if (found_first) exit
+                  next
+                }
+                found_first = 1
+              }
+              found_first { print }
+            ' docs/CHANGELOG.md > release_notes_cumulative.md
 
-            if [ -s release_notes.md ]; then
-              echo "✅ Changelog extracted from CHANGELOG.md"
-              cat release_notes.md
+            if [ -s release_notes_cumulative.md ]; then
+              echo "✅ Cumulative changelog extracted from CHANGELOG.md"
+              echo "📋 Cumulative Release Notes (for Sparkle):"
+              head -n 50 release_notes_cumulative.md
+              echo "..."
             else
-              echo "⚠️  No entry found for $VERSION in CHANGELOG.md, using git log..."
-              git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > release_notes.md
+              echo "⚠️  No changelog found in CHANGELOG.md"
+              echo "# Changelog" > release_notes_cumulative.md
             fi
           else
-            echo "📝 No CHANGELOG.md found, generating from git log..."
-            git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > release_notes.md
+            echo "📝 No CHANGELOG.md found"
+            echo "# Changelog" > release_notes_cumulative.md
           fi
 
-          # Create full release notes
+          # Also extract current version only for GitHub Release
+          awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{if(!/^## \[$VERSION\]/) flag=0} flag" docs/CHANGELOG.md > release_notes_current.md 2>/dev/null || true
+
+          if [ ! -s release_notes_current.md ]; then
+            echo "⚠️  No entry found for $VERSION in CHANGELOG.md, using git log..."
+            git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > release_notes_current.md
+          fi
+
+          # Create full release notes for GitHub Release
           cat > release_notes_full.md << EOF
           For installation instructions and documentation, please see [the README](https://github.com/abd3lraouf/Notimanager#readme).
 
@@ -229,7 +260,7 @@ jobs:
 
           EOF
 
-          cat release_notes.md >> release_notes_full.md
+          cat release_notes_current.md >> release_notes_full.md
 
           # Add full changelog link
           cat >> release_notes_full.md << 'EOF'
@@ -248,17 +279,151 @@ jobs:
 
           sed -i '' "s/\$VERSION/$VERSION/g" release_notes_full.md
 
-          echo "📋 Release Notes:"
+          echo "📋 GitHub Release Notes:"
           cat release_notes_full.md
+
+      - name: Generate HTML release notes for Sparkle
+        run: |
+          echo "🌐 Generating HTML release notes from cumulative changelog..."
+
+          # Create styled HTML from cumulative markdown changelog
+          cat > release_notes.html << 'HTMLHEADER'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+                padding: 16px;
+                margin: 0;
+                line-height: 1.5;
+                color: #333;
+              }
+              h3 {
+                font-size: 16px;
+                font-weight: 600;
+                margin-top: 20px;
+                margin-bottom: 8px;
+                color: #1d1d1f;
+              }
+              h4 {
+                font-size: 13px;
+                font-weight: 600;
+                margin-top: 12px;
+                margin-bottom: 6px;
+                color: #6e6e73;
+              }
+              ul {
+                margin: 0 0 12px 0;
+                padding-left: 18px;
+              }
+              li {
+                margin-bottom: 4px;
+                font-size: 13px;
+                color: #1d1d1f;
+              }
+              code {
+                font-family: "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                font-size: 12px;
+                background: #f5f5f7;
+                padding: 2px 5px;
+                border-radius: 3px;
+              }
+              strong {
+                font-weight: 600;
+              }
+            </style>
+          </head>
+          <body>
+          HTMLHEADER
+
+          # Convert markdown to HTML using our Python script
+          python3 scripts/markdown_to_html.py release_notes_cumulative.md >> release_notes.html
+
+          cat >> release_notes.html << 'HTMLFOOTER'
+          </body>
+          </html>
+          HTMLFOOTER
+
+          echo "✅ HTML release notes generated"
+
+      - name: Inject cumulative release notes into appcast
+        run: |
+          echo "💉 Injecting cumulative HTML release notes into appcast.xml..."
+
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if [ ! -f "updates/appcast.xml" ]; then
+            echo "❌ appcast.xml not found!"
+            exit 1
+          fi
+
+          # Read the HTML content
+          HTML_CONTENT=$(cat release_notes.html)
+
+          # Escape special characters for XML CDATA
+          # We only need to escape ]]> as it breaks CDATA
+          HTML_CONTENT=$(echo "$HTML_CONTENT" | sed 's/]]]/]]]]><![CDATA[>/g')
+
+          # Create the description element with CDATA
+          DESCRIPTION="<description><![CDATA[${HTML_CONTENT}]]></description>"
+
+          # Insert the description into the appcast.xml
+          # We want to insert it after the <enclosure> element for the current version
+          # Using a more robust approach: find the item with our version and insert description
+          python3 << PYTHON
+          import re
+
+          with open('updates/appcast.xml', 'r') as f:
+              content = f.read()
+
+          # Read the HTML content
+          with open('release_notes.html', 'r') as f:
+              html_content = f.read()
+
+          # Escape CDATA end marker
+          html_content = html_content.replace(']]>', ']]]]><![CDATA[>')
+
+          # Create the description element
+          description = f'<description><![CDATA[{html_content}]]></description>'
+
+          # Find the item for this version and insert description after <enclosure>
+          # Pattern: find <enclosure.../> and insert description after it
+          pattern = r'(<enclosure[^>]*>)'
+
+          def replacer(match):
+              return match.group(1) + '\\n' + description
+
+          # Only replace the first occurrence (current version)
+          new_content = re.sub(pattern, replacer, content, count=1)
+
+          with open('updates/appcast.xml', 'w') as f:
+              f.write(new_content)
+
+          print("✅ Description injected into appcast.xml")
+          PYTHON
+
+          echo "📋 Updated appcast.xml:"
+          cat updates/appcast.xml
+
+      - name: Upload updated appcast as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast-xml
+          path: updates/appcast.xml
+          retention-days: 90
+          overwrite: true
 
       - name: Prepare release artifacts
         id: artifacts
         run: |
           echo "📦 Preparing release artifacts..."
+          VERSION="${{ steps.version.outputs.version }}"
           {
             echo "RELEASE_FILES<<EOF"
             echo "build/Notimanager-macOS.zip"
-            echo "build/Notimanager-macOS.dmg"
+            echo "build/Notimanager-${VERSION}.dmg"
             echo "updates/appcast.xml"
             # Include deltas if they exist
             if ls updates/*.delta 1> /dev/null 2>&1; then
@@ -286,7 +451,7 @@ jobs:
           name: Notimanager-${{ steps.version.outputs.version }}
           path: |
             build/Notimanager-macOS.zip
-            build/Notimanager-macOS.dmg
+            build/Notimanager-${{ steps.version.outputs.version }}.dmg
             build/release/Notimanager.app
           retention-days: 30
           if-no-files-found: ignore
