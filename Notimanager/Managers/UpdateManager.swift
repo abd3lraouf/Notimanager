@@ -148,5 +148,43 @@ extension UpdateManager: SPUUpdaterDelegate {
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         // Still update last check date on error
         lastUpdateCheckDate = Date()
+        // Log the error for debugging
+        print("Update aborted with error: \(error.localizedDescription)")
+    }
+
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        print("Found valid update: \(item.versionString)")
+    }
+
+    func updater(_ updater: SPUUpdater, didNotFindUpdate item: SUAppcastItem) {
+        print("No new update found. Current version is up to date.")
+    }
+
+    func updater(_ updater: SPUUpdater, willDownloadUpdate item: SUAppcastItem) {
+        print("Preparing to download update: \(item.versionString)")
+    }
+
+    func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
+        print("Successfully downloaded update: \(item.versionString)")
+    }
+
+    func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: Error) {
+        print("Failed to download update \(item.versionString): \(error.localizedDescription)")
+    }
+
+    func updater(_ updater: SPUUpdater, willExtractUpdate item: SUAppcastItem) {
+        print("Extracting update: \(item.versionString)")
+    }
+
+    func updater(_ updater: SPUUpdater, didExtractUpdate item: SUAppcastItem) {
+        print("Successfully extracted update: \(item.versionString)")
+    }
+
+    func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
+        print("Installing update: \(item.versionString)")
+    }
+
+    func updater(_ updater: SPUUpdater, failedToApplyUpdate item: SUAppcastItem, error: Error) {
+        print("Failed to apply update \(item.versionString): \(error.localizedDescription)")
     }
 }
