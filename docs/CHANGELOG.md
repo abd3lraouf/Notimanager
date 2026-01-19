@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
+## [2.1.0] - 2026-01-20
+
+### ✨ New Features
+- **Cumulative Release Notes**: Sparkle now shows all changes from intermediate versions when updating
+  - Users updating from older versions (e.g., v2.0.2) will see full changelog including all versions between
+  - Release notes are displayed with beautiful HTML formatting using Apple system fonts
+  - Changelogs are embedded directly in appcast.xml for immediate display
+
+### 🔧 Improvements
+- **Release Workflow**: Enhanced GitHub Actions workflow for better release automation
+  - Added Python script to convert Markdown changelogs to styled HTML
+  - Improved appcast generation with cumulative release note injection
+  - DMG files now include version number in filename
+
+### 🛠️ Developer Experience
+- **Update Logging**: Added comprehensive logging for Sparkle update lifecycle
+  - Track update discovery, download, extraction, and installation stages
+  - Error logging at each stage for easier debugging
+
 ## [2.0.4] - 2026-01-18
 
 ### 🧪 Testing
