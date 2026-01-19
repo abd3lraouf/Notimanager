@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
+## [2.1.1] - 2026-01-20
+
+### 🧪 Testing
+- **Dummy Release**: Version bump for testing update mechanism with cumulative changelogs
+
 ## [2.1.0] - 2026-01-20
 
 ### ✨ New Features
