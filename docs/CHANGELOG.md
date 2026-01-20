@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
+## [2.1.4] - 2026-01-20
+
+### ✨ New Features
+- **Dynamic Appcast Generation**: Appcast.xml is now generated directly from CHANGELOG.md
+  - All versions are automatically included in the appcast
+  - Each version has its own release notes in HTML format
+  - Sparkle aggregates newer versions' notes for updating users
+
 ## [2.1.3] - 2026-01-20
 
 ### 🧪 Testing
