@@ -5,7 +5,7 @@
 //  Created on 2025-01-17.
 //  Manages Sparkle auto-updates.
 //
-//  Dummy change for testing v2.1.1 release
+//  Dummy change for testing v2.1.2 release
 //
 
 import AppKit
