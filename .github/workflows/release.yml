@@ -155,7 +155,7 @@ jobs:
 
       - name: Generate appcast
         run: |
-          echo "📡 Generating Sparkle appcast..."
+          echo "📡 Generating Sparkle appcast from CHANGELOG.md..."
           VERSION="${{ steps.version.outputs.version }}"
 
           # Create updates folder
@@ -164,20 +164,19 @@ jobs:
           # Copy DMG to updates folder
           cp "build/Notimanager-${VERSION}.dmg" "updates/Notimanager-${VERSION}.dmg"
 
-          # Download previous release appcast.xml to preserve all versions
-          echo "📥 Downloading previous appcast to preserve version history..."
+          # Download previous release DMG for delta generation
+          echo "⬇️ Downloading previous release for delta generation..."
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             echo "Found previous tag: $PREV_TAG"
-            gh release download "$PREV_TAG" -p "appcast.xml" -O updates/prev_appcast.xml || echo "⚠️ Could not download previous appcast"
-            gh release download "$PREV_TAG" -p "*.dmg" -D updates || echo "⚠️ Could not download previous release artifacts for delta generation"
+            gh release download "$PREV_TAG" -p "*.dmg" -D updates || echo "⚠️ Could not download previous release artifacts"
           else
-            echo "⚠️ No previous tag found"
+            echo "⚠️ No previous tag found, skipping delta generation"
           fi
 
-          # Generate new appcast with current version
+          # Generate base appcast with current version for signing
           if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
-            echo "📝 Signing appcast with private key (file-based)..."
+            echo "📝 Signing appcast with private key..."
             echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | base64 -d > sparkle_private_key.pem
             ./bin/generate_appcast updates --ed-key-file sparkle_private_key.pem
           else
@@ -185,83 +184,17 @@ jobs:
             ./bin/generate_appcast updates
           fi
 
-          # Merge previous appcast entries to preserve all versions
-          if [ -f "updates/prev_appcast.xml" ]; then
-            echo "🔗 Merging previous appcast entries..."
-            python3 << PYTHON
-            import re
-            import xml.etree.ElementTree as ET
+          # Generate complete appcast from CHANGELOG.md (all versions)
+          echo "📋 Generating complete appcast from CHANGELOG.md..."
+          python3 scripts/generate_appcast_from_changelog.py \
+            --changelog docs/CHANGELOG.md \
+            --current-appcast updates/appcast.xml \
+            --output updates/appcast.xml \
+            --current-version "$VERSION"
 
-            # Parse current appcast (has only new version)
-            with open('updates/appcast.xml', 'r') as f:
-                current_content = f.read()
-
-            # Parse previous appcast (has all old versions)
-            with open('updates/prev_appcast.xml', 'r') as f:
-                prev_content = f.read()
-
-            # Extract the channel content from current
-            current_match = re.search(r'<channel>(.*?)</channel>', current_content, re.DOTALL)
-            if not current_match:
-                print("⚠️ Could not parse current appcast")
-                exit(1)
-
-            current_channel = current_match.group(1)
-
-            # Extract items from previous appcast
-            prev_items = re.findall(r'<item>.*?</item>', prev_content, re.DOTALL)
-
-            # Extract current version to avoid duplicates
-            current_version_match = re.search(r'<sparkle:version>([^<]+)</sparkle:version>', current_channel)
-            current_version = current_version_match.group(1) if current_version_match else ""
-
-            # Filter out items with same version from previous appcast
-            filtered_prev_items = []
-            for item in prev_items:
-                item_version_match = re.search(r'<sparkle:version>([^<]+)</sparkle:version>', item)
-                if item_version_match:
-                    item_version = item_version_match.group(1)
-                    # Only include items with version < current version
-                    # Simple string comparison for now, could be improved with proper version parsing
-                    if item_version != current_version:
-                        filtered_prev_items.append(item)
-
-            # Build new channel content with all items
-            # Extract current item from current appcast
-            current_item_match = re.search(r'(<item>.*?</item>)', current_channel, re.DOTALL)
-            current_item = current_item_match.group(1) if current_item_match else ""
-
-            # Combine: current item first, then all previous items (newest first)
-            all_items = [current_item] + filtered_prev_items
-
-            # Reconstruct the RSS feed
-            new_content = '''<?xml version="1.0" standalone="yes"?>
-<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
-    <channel>
-        <title>Notimanager</title>
-''' + '\n'.join(all_items) + '''
-    </channel>
-</rss>'''
-
-            with open('updates/appcast.xml', 'w') as f:
-                f.write(new_content)
-
-            print(f"✅ Merged {len(filtered_prev_items)} previous version(s) into appcast")
-            PYTHON
-          fi
-
-          # Patch appcast.xml to use absolute URLs for GitHub Releases
-          if [ -f "updates/appcast.xml" ]; then
-            echo "🔧 Patching appcast with absolute URLs..."
-            # Replace local filename with full GitHub Release URL
-            sed -i '' "s|url=\"Notimanager-${VERSION}.dmg\"|url=\"https://github.com/abd3lraouf/Notimanager/releases/download/v${VERSION}/Notimanager-${VERSION}.dmg\"|g" updates/appcast.xml
-
-            # Patch delta update URLs
-            sed -i '' "s|url=\"\([^\" ]*\.delta\)\"|url=\"https://github.com/abd3lraouf/Notimanager/releases/download/v${VERSION}/\1\"|g" updates/appcast.xml
-
-            echo "✅ Appcast patched with all versions"
-            cat updates/appcast.xml
-          fi
+          echo "✅ Appcast generated with all versions from CHANGELOG.md"
+          echo "📋 Appcast preview:"
+          head -50 updates/appcast.xml
 
       - name: Upload appcast as artifact
         uses: actions/upload-artifact@v4
@@ -323,140 +256,6 @@ jobs:
 
           echo "📋 GitHub Release Notes:"
           cat release_notes_full.md
-
-      - name: Generate HTML release notes for Sparkle
-        run: |
-          echo "🌐 Generating HTML release notes for Sparkle..."
-
-          # Create styled HTML from current version changelog only
-          # Sparkle will automatically aggregate descriptions from multiple versions
-          cat > release_notes.html << 'HTMLHEADER'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-                padding: 16px;
-                margin: 0;
-                line-height: 1.5;
-                color: #333;
-              }
-              h3 {
-                font-size: 16px;
-                font-weight: 600;
-                margin-top: 20px;
-                margin-bottom: 8px;
-                color: #1d1d1f;
-              }
-              h4 {
-                font-size: 13px;
-                font-weight: 600;
-                margin-top: 12px;
-                margin-bottom: 6px;
-                color: #6e6e73;
-              }
-              ul {
-                margin: 0 0 12px 0;
-                padding-left: 18px;
-              }
-              li {
-                margin-bottom: 4px;
-                font-size: 13px;
-                color: #1d1d1f;
-              }
-              code {
-                font-family: "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-                font-size: 12px;
-                background: #f5f5f7;
-                padding: 2px 5px;
-                border-radius: 3px;
-              }
-              strong {
-                font-weight: 600;
-              }
-            </style>
-          </head>
-          <body>
-          HTMLHEADER
-
-          # Convert markdown to HTML using our Python script
-          python3 scripts/markdown_to_html.py release_notes_current.md >> release_notes.html
-
-          cat >> release_notes.html << 'HTMLFOOTER'
-          </body>
-          </html>
-          HTMLFOOTER
-
-          echo "✅ HTML release notes generated"
-
-      - name: Inject release notes into appcast
-        run: |
-          echo "💉 Injecting HTML release notes into appcast.xml..."
-
-          VERSION="${{ steps.version.outputs.version }}"
-
-          if [ ! -f "updates/appcast.xml" ]; then
-            echo "❌ appcast.xml not found!"
-            exit 1
-          fi
-
-          # Read the HTML content
-          HTML_CONTENT=$(cat release_notes.html)
-
-          # Escape special characters for XML CDATA
-          # We only need to escape ]]> as it breaks CDATA
-          HTML_CONTENT=$(echo "$HTML_CONTENT" | sed 's/]]]/]]]]><![CDATA[>/g')
-
-          # Create the description element with CDATA
-          DESCRIPTION="<description><![CDATA[${HTML_CONTENT}]]></description>"
-
-          # Insert the description into the appcast.xml
-          # We want to insert it after the <enclosure> element for the current version
-          # Using a more robust approach: find the item with our version and insert description
-          python3 << PYTHON
-          import re
-
-          with open('updates/appcast.xml', 'r') as f:
-              content = f.read()
-
-          # Read the HTML content
-          with open('release_notes.html', 'r') as f:
-              html_content = f.read()
-
-          # Escape CDATA end marker
-          html_content = html_content.replace(']]>', ']]]]><![CDATA[>')
-
-          # Create the description element
-          description = f'<description><![CDATA[{html_content}]]></description>'
-
-          # Find the item for this version and insert description after <enclosure>
-          # Pattern: find <enclosure.../> and insert description after it
-          pattern = r'(<enclosure[^>]*>)'
-
-          def replacer(match):
-              return match.group(1) + '\\n' + description
-
-          # Only replace the first occurrence (current version)
-          new_content = re.sub(pattern, replacer, content, count=1)
-
-          with open('updates/appcast.xml', 'w') as f:
-              f.write(new_content)
-
-          print("✅ Description injected into appcast.xml")
-          PYTHON
-
-          echo "📋 Updated appcast.xml:"
-          cat updates/appcast.xml
-
-      - name: Upload updated appcast as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: appcast-xml
-          path: updates/appcast.xml
-          retention-days: 90
-          overwrite: true
 
       - name: Prepare release artifacts
         id: artifacts
