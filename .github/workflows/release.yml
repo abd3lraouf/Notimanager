@@ -209,46 +209,24 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          echo "📋 Generating cumulative changelog for Sparkle..."
+          echo "📋 Generating changelog..."
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Extract cumulative changelog from CHANGELOG.md
-          # Get ALL version entries from the top until we hit unreleased or end
-          # This provides users updating from older versions with full context
+          # Extract current version only from CHANGELOG.md for both Sparkle and GitHub Release
+          # Sparkle will aggregate descriptions from multiple versions automatically
           if [ -f "docs/CHANGELOG.md" ]; then
-            # Extract all released versions (skip [Unreleased])
-            # Start from first version header, stop at [Unreleased] or EOF
-            awk '
-              BEGIN { found_first = 0 }
-              /^## \[/ {
-                if ($0 ~ /Unreleased/) {
-                  if (found_first) exit
-                  next
-                }
-                found_first = 1
-              }
-              found_first { print }
-            ' docs/CHANGELOG.md > release_notes_cumulative.md
+            awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{if(!/^## \[$VERSION\]/) flag=0} flag" docs/CHANGELOG.md > release_notes_current.md 2>/dev/null || true
 
-            if [ -s release_notes_cumulative.md ]; then
-              echo "✅ Cumulative changelog extracted from CHANGELOG.md"
-              echo "📋 Cumulative Release Notes (for Sparkle):"
-              head -n 50 release_notes_cumulative.md
-              echo "..."
+            if [ -s release_notes_current.md ]; then
+              echo "✅ Changelog extracted for $VERSION"
+              echo "📋 Release Notes:"
+              cat release_notes_current.md
             else
-              echo "⚠️  No changelog found in CHANGELOG.md"
-              echo "# Changelog" > release_notes_cumulative.md
+              echo "⚠️  No entry found for $VERSION in CHANGELOG.md, using git log..."
+              git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > release_notes_current.md
             fi
           else
-            echo "📝 No CHANGELOG.md found"
-            echo "# Changelog" > release_notes_cumulative.md
-          fi
-
-          # Also extract current version only for GitHub Release
-          awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{if(!/^## \[$VERSION\]/) flag=0} flag" docs/CHANGELOG.md > release_notes_current.md 2>/dev/null || true
-
-          if [ ! -s release_notes_current.md ]; then
-            echo "⚠️  No entry found for $VERSION in CHANGELOG.md, using git log..."
+            echo "📝 No CHANGELOG.md found, generating from git log..."
             git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > release_notes_current.md
           fi
 
@@ -284,9 +262,10 @@ jobs:
 
       - name: Generate HTML release notes for Sparkle
         run: |
-          echo "🌐 Generating HTML release notes from cumulative changelog..."
+          echo "🌐 Generating HTML release notes for Sparkle..."
 
-          # Create styled HTML from cumulative markdown changelog
+          # Create styled HTML from current version changelog only
+          # Sparkle will automatically aggregate descriptions from multiple versions
           cat > release_notes.html << 'HTMLHEADER'
           <!DOCTYPE html>
           <html>
@@ -339,7 +318,7 @@ jobs:
           HTMLHEADER
 
           # Convert markdown to HTML using our Python script
-          python3 scripts/markdown_to_html.py release_notes_cumulative.md >> release_notes.html
+          python3 scripts/markdown_to_html.py release_notes_current.md >> release_notes.html
 
           cat >> release_notes.html << 'HTMLFOOTER'
           </body>
@@ -348,9 +327,9 @@ jobs:
 
           echo "✅ HTML release notes generated"
 
-      - name: Inject cumulative release notes into appcast
+      - name: Inject release notes into appcast
         run: |
-          echo "💉 Injecting cumulative HTML release notes into appcast.xml..."
+          echo "💉 Injecting HTML release notes into appcast.xml..."
 
           VERSION="${{ steps.version.outputs.version }}"
 
