@@ -190,3 +190,5 @@ extension UpdateManager: SPUUpdaterDelegate {
         print("Failed to apply update \(item.versionString): \(error.localizedDescription)")
     }
 }
+
+// Dummy change for testing 2.1.6 release
