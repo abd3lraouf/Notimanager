@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Placeholder for upcoming changes
 
 
+## [2.1.14] - 2026-01-20
+
+### 🐛 Fixed
+- **Dummy Release**: Bugfix release for testing update mechanism
+
+## [2.1.13] - 2026-01-20
+
+### 🐛 Fixed
+- **Dummy Release**: Bugfix release for testing update mechanism
+
 ## [2.1.12] - 2026-01-20
 
 ### 🐛 Fixed
