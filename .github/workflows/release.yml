@@ -164,17 +164,18 @@ jobs:
           # Copy DMG to updates folder
           cp "build/Notimanager-${VERSION}.dmg" "updates/Notimanager-${VERSION}.dmg"
 
-          # Download previous release DMG for delta generation
-          echo "⬇️ Downloading previous release for delta generation..."
+          # Download previous release appcast.xml to preserve all versions
+          echo "📥 Downloading previous appcast to preserve version history..."
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             echo "Found previous tag: $PREV_TAG"
-            gh release download "$PREV_TAG" -p "*.dmg" -D updates || echo "⚠️ Could not download previous release artifacts"
+            gh release download "$PREV_TAG" -p "appcast.xml" -O updates/prev_appcast.xml || echo "⚠️ Could not download previous appcast"
+            gh release download "$PREV_TAG" -p "*.dmg" -D updates || echo "⚠️ Could not download previous release artifacts for delta generation"
           else
-            echo "⚠️ No previous tag found, skipping delta generation"
+            echo "⚠️ No previous tag found"
           fi
 
-          # Generate appcast
+          # Generate new appcast with current version
           if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
             echo "📝 Signing appcast with private key (file-based)..."
             echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | base64 -d > sparkle_private_key.pem
@@ -184,18 +185,81 @@ jobs:
             ./bin/generate_appcast updates
           fi
 
+          # Merge previous appcast entries to preserve all versions
+          if [ -f "updates/prev_appcast.xml" ]; then
+            echo "🔗 Merging previous appcast entries..."
+            python3 << PYTHON
+            import re
+            import xml.etree.ElementTree as ET
+
+            # Parse current appcast (has only new version)
+            with open('updates/appcast.xml', 'r') as f:
+                current_content = f.read()
+
+            # Parse previous appcast (has all old versions)
+            with open('updates/prev_appcast.xml', 'r') as f:
+                prev_content = f.read()
+
+            # Extract the channel content from current
+            current_match = re.search(r'<channel>(.*?)</channel>', current_content, re.DOTALL)
+            if not current_match:
+                print("⚠️ Could not parse current appcast")
+                exit(1)
+
+            current_channel = current_match.group(1)
+
+            # Extract items from previous appcast
+            prev_items = re.findall(r'<item>.*?</item>', prev_content, re.DOTALL)
+
+            # Extract current version to avoid duplicates
+            current_version_match = re.search(r'<sparkle:version>([^<]+)</sparkle:version>', current_channel)
+            current_version = current_version_match.group(1) if current_version_match else ""
+
+            # Filter out items with same version from previous appcast
+            filtered_prev_items = []
+            for item in prev_items:
+                item_version_match = re.search(r'<sparkle:version>([^<]+)</sparkle:version>', item)
+                if item_version_match:
+                    item_version = item_version_match.group(1)
+                    # Only include items with version < current version
+                    # Simple string comparison for now, could be improved with proper version parsing
+                    if item_version != current_version:
+                        filtered_prev_items.append(item)
+
+            # Build new channel content with all items
+            # Extract current item from current appcast
+            current_item_match = re.search(r'(<item>.*?</item>)', current_channel, re.DOTALL)
+            current_item = current_item_match.group(1) if current_item_match else ""
+
+            # Combine: current item first, then all previous items (newest first)
+            all_items = [current_item] + filtered_prev_items
+
+            # Reconstruct the RSS feed
+            new_content = '''<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Notimanager</title>
+''' + '\n'.join(all_items) + '''
+    </channel>
+</rss>'''
+
+            with open('updates/appcast.xml', 'w') as f:
+                f.write(new_content)
+
+            print(f"✅ Merged {len(filtered_prev_items)} previous version(s) into appcast")
+            PYTHON
+          fi
+
           # Patch appcast.xml to use absolute URLs for GitHub Releases
           if [ -f "updates/appcast.xml" ]; then
             echo "🔧 Patching appcast with absolute URLs..."
             # Replace local filename with full GitHub Release URL
-            # Pattern: url="Notimanager-1.2.3.dmg" -> url="https://github.com/.../v1.2.3/Notimanager-1.2.3.dmg"
             sed -i '' "s|url=\"Notimanager-${VERSION}.dmg\"|url=\"https://github.com/abd3lraouf/Notimanager/releases/download/v${VERSION}/Notimanager-${VERSION}.dmg\"|g" updates/appcast.xml
-            
+
             # Patch delta update URLs
-            # Pattern: url="Notimanager-1.0-2.0.delta" -> url="https://github.com/.../v2.0/Notimanager-1.0-2.0.delta"
             sed -i '' "s|url=\"\([^\" ]*\.delta\)\"|url=\"https://github.com/abd3lraouf/Notimanager/releases/download/v${VERSION}/\1\"|g" updates/appcast.xml
 
-            echo "✅ Appcast patched"
+            echo "✅ Appcast patched with all versions"
             cat updates/appcast.xml
           fi
 
