@@ -5,7 +5,7 @@
 //  Created on 2025-01-17.
 //  Manages Sparkle auto-updates.
 //
-//  Dummy change for testing v2.1.3 release with per-version changelogs
+//  Testing dynamic appcast generation from CHANGELOG.md
 //
 
 import AppKit
