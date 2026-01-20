@@ -7,14 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🚧 Work in Progress
+- Placeholder for upcoming changes
+
+
+
+## [2.1.11] - 2026-01-20
+
+### 🐛 Fixed
+- **Dummy Release**: Bugfix release for testing update mechanism
+
 
 ## [2.1.10] - 2026-01-20
 
 ### 🐛 Fixed
 - **Dummy Release**: Bugfix release for testing update mechanism
-
-### 🚧 Work in Progress
-- Placeholder for upcoming changes
 
 
 ## [2.1.9] - 2026-01-20
