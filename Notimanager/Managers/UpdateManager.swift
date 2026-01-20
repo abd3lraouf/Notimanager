@@ -196,3 +196,5 @@ extension UpdateManager: SPUUpdaterDelegate {
 // Dummy change for testing 2.1.7 release
 
 // Dummy change for testing 2.1.8 release
+
+// Dummy change for testing 2.1.9 release
