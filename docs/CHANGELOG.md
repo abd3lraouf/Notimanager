@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
+## [2.1.3] - 2026-01-20
+
+### 🧪 Testing
+- **Dummy Release**: Testing per-version changelog fix in Sparkle
+
 ## [2.1.2] - 2026-01-20
 
 ### 🧪 Testing
