@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    name: Build and Release
+    name: Publish Release
     runs-on: macos-latest
 
     steps:
@@ -18,23 +18,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Install tools
-        run: |
-          echo "📦 Installing dependencies..."
-          npm install --global create-dmg
-          brew install librsvg
-          echo "✅ Dependencies installed"
-
-      - name: Install Sparkle tools
-        run: |
-          echo "📦 Installing Sparkle for appcast generation..."
-          wget https://github.com/sparkle-project/Sparkle/releases/download/2.7.0/Sparkle-2.7.0.tar.xz -O sparkle.tar.xz
-          tar xf sparkle.tar.xz
-          echo "✅ Sparkle tools installed"
 
       - name: Extract version info
         id: version
@@ -45,140 +28,6 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Release Tag: $TAG"
           echo "📦 App Version: $VERSION"
-
-      - name: Update build version
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" \
-            Notimanager/Resources/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" \
-            Notimanager/Resources/Info.plist
-          echo "✅ Build version updated to $VERSION"
-
-      - name: Generate icons
-        run: |
-          echo "🎨 Generating icons from SVG sources..."
-          ./scripts/generate-all-icons.sh
-          echo "✅ Icons generated"
-
-      - name: Build and archive
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          echo "🔨 Building Notimanager with Apple ID code signing..."
-
-          # Validate credentials
-          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_ID_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
-            echo "❌ Missing Apple credentials"
-            echo "Required secrets: APPLE_ID, APPLE_ID_PASSWORD, APPLE_TEAM_ID"
-            exit 1
-          fi
-
-          echo "📱 Apple ID: $APPLE_ID"
-          echo "👥 Team ID: $APPLE_TEAM_ID"
-
-          # Build with Xcode cloud signing - Apple ID credentials allow Xcode
-          # to automatically fetch/create certificates
-          xcodebuild archive \
-            -scheme Notimanager \
-            -archivePath build/Notimanager.xcarchive \
-            -destination 'platform=macOS' \
-            -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" || exit 1
-
-          echo "✅ Archive created"
-
-      - name: Export app bundle
-        run: |
-          echo "📦 Exporting app bundle..."
-          mkdir -p build/release
-          cp -R build/Notimanager.xcarchive/Products/Applications/Notimanager.app \
-            build/release/Notimanager.app
-
-          # Copy .icns file to app bundle for System Settings
-          if [ -f "Notimanager/Resources/AppIcon.icns" ]; then
-            echo "📦 Copying app icon to bundle..."
-            cp Notimanager/Resources/AppIcon.icns build/release/Notimanager.app/Contents/Resources/
-            echo "✅ App icon copied"
-          fi
-
-          if [ -d "build/release/Notimanager.app" ]; then
-            echo "✅ App bundle exported"
-            ls -la build/release/Notimanager.app
-          else
-            echo "❌ Failed to export app bundle"
-            exit 1
-          fi
-
-      - name: Verify code signature
-        run: |
-          echo "🔍 Verifying code signature..."
-          codesign -dv build/release/Notimanager.app 2>&1 | head -5
-          echo ""
-          echo "📋 Code signature details:"
-          codesign -d -r - build/release/Notimanager.app 2>&1 | head -10
-
-      - name: Create DMG
-        run: |
-          echo "💿 Creating DMG installer..."
-
-          # Create DMG with create-dmg (npm version)
-          create-dmg build/release/Notimanager.app build/
-
-          if [ -f "build/Notimanager *.dmg" ]; then
-            # Rename to standard name
-            mv "build/Notimanager "*.dmg" "build/Notimanager-macOS.dmg" 2>/dev/null || true
-            echo "✅ DMG created"
-            ls -lh build/Notimanager-macOS.dmg
-          else
-            echo "⚠️  DMG not created"
-            exit 1
-          fi
-
-      - name: Rename DMG with version
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          echo "📝 Renaming DMG to include version..."
-          mv "build/Notimanager-macOS.dmg" "build/Notimanager-${VERSION}.dmg"
-          echo "✅ DMG renamed to Notimanager-${VERSION}.dmg"
-          ls -lh "build/Notimanager-${VERSION}.dmg"
-
-      # ------------------------------------------------------------------
-      # STEP: Sign Update & Prepare Appcast
-      # ------------------------------------------------------------------
-
-      - name: Sign Update
-        id: sign
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          DMG_PATH="build/Notimanager-${VERSION}.dmg"
-
-          echo "🔏 Signing update package..."
-
-          # 1. Write the private key to a temp file
-          echo "$SPARKLE_PRIVATE_KEY" > sparkle_key.pem
-
-          # 2. Calculate the EdDSA Signature using Sparkle's sign_update tool
-          SIGNATURE=$(./bin/sign_update --ed-key-file sparkle_key.pem "$DMG_PATH")
-
-          # 3. Clean up the key file
-          rm sparkle_key.pem
-
-          # 4. Get File Size
-          FILE_SIZE=$(stat -f%z "$DMG_PATH")
-
-          echo "✅ Signature generated"
-          echo "   Size: $FILE_SIZE bytes"
-          echo "   Signature: ${SIGNATURE:0:30}..."
-
-          # 5. Export to GitHub Output for the next step
-          echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
-          echo "size=$FILE_SIZE" >> $GITHUB_OUTPUT
 
       - name: Update Appcast
         env:
@@ -211,14 +60,12 @@ jobs:
             --appcast updates/appcast.xml \
             --version "$VERSION" \
             --url "https://github.com/abd3lraouf/Notimanager/releases/download/${TAG}/Notimanager-${VERSION}.dmg" \
-            --signature "${{ steps.sign.outputs.signature }}" \
-            --length "${{ steps.sign.outputs.size }}"
+            --signature "placeholder" \
+            --length "placeholder"
 
           echo ""
           echo "📋 Appcast preview (first 50 lines):"
           head -50 updates/appcast.xml
-
-      # ------------------------------------------------------------------
 
       - name: Generate changelog
         id: changelog
@@ -273,28 +120,30 @@ jobs:
           echo "📋 GitHub Release Notes:"
           cat release_notes_full.md
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (Draft)
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Notimanager ${{ steps.version.outputs.version }}
           body_path: release_notes_full.md
-          files: |
-            build/Notimanager-${{ steps.version.outputs.version }}.dmg
-            updates/appcast.xml
-          fail_on_unmatched_files: true
-          draft: false
+          draft: true
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Notimanager-${{ steps.version.outputs.version }}
-          path: |
-            build/Notimanager-${{ steps.version.outputs.version }}.dmg
-            build/release/Notimanager.app
-            updates/appcast.xml
-          retention-days: 30
-          if-no-files-found: ignore
+      - name: Check for uploaded artifacts
+        run: |
+          echo "📦 This release is set as draft."
+          echo ""
+          echo "⚠️  IMPORTANT: You must build and attach artifacts manually:"
+          echo "   1. Build locally: ./scripts/build.sh all"
+          echo "   2. You'll get: Notimanager-${VERSION}.dmg"
+          echo "   3. Sign the DMG with your Apple Development certificate"
+          echo "   4. Go to: https://github.com/abd3lraouf/Notimanager/releases/tag/v${VERSION}"
+          echo "   5. Edit the release and attach the DMG file"
+          echo "   6. Update the appcast.xml with the real signature:"
+          echo "      - Sign the DMG: ./bin/sign_update --ed-key-file your_key.pem Notimanager-${VERSION}.dmg"
+          echo "      - Update the signature and size in appcast.xml"
+          echo "   7. Mark as published"
+          echo ""
+          echo "📋 Release URL: https://github.com/abd3lraouf/Notimanager/releases/tag/v${VERSION}"
