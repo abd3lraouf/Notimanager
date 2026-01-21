@@ -31,7 +31,8 @@ jobs:
       - name: Install tools
         run: |
           echo "📦 Installing create-dmg and dependencies..."
-          brew install create-dmg librsvg
+          npm install --global create-dmg
+          brew install librsvg
           echo "✅ Dependencies installed"
 
       - name: Install Sparkle tools
