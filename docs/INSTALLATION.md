@@ -1,98 +1,63 @@
 # Installation Guide
 
-This guide covers installing Notimanager on macOS.
+Installation instructions for Notimanager on macOS.
 
-## Quick Install (Downloaded Release)
+## Installation Methods
 
-Choose one of the following installation methods:
+### DMG Installer (Recommended)
 
-### Method 1: DMG Installer (Recommended)
+1. Download the latest `Notimanager-macOS.dmg` from [GitHub Releases](https://github.com/abd3lraouf/Notimanager/releases)
+2. Open the DMG and drag Notimanager to Applications
+3. Eject the DMG
+4. Right-click Notimanager in Applications and select **Open** (first launch only)
 
-The DMG installer provides the easiest installation experience with a drag-and-drop interface.
+### ZIP Archive
 
-1. **Download** the latest `Notimanager-macOS.dmg` from [GitHub Releases](https://github.com/abd3lraouf/Notimanager/releases)
-2. **Open the DMG** by double-clicking it
-3. **Drag Notimanager** to the Applications folder shortcut
-4. **Eject the DMG** by clicking the eject button in Finder or dragging it to Trash
-5. **Right-click** Notimanager in Applications and select **Open** (first launch only)
-6. **Grant Accessibility permissions** when prompted
-
-### Method 2: ZIP Archive
-
-If you prefer the ZIP archive format:
-
-1. **Download** the latest `Notimanager-macOS.zip` from [GitHub Releases](https://github.com/abd3lraouf/Notimanager/releases)
-2. **Extract** the ZIP file to get `Notimanager.app`
-3. **Move to Applications**:
+1. Download `Notimanager-macOS.zip` from [GitHub Releases](https://github.com/abd3lraouf/Notimanager/releases)
+2. Extract and move to Applications:
    ```bash
    mv Downloads/Notimanager.app /Applications/
    ```
-4. **Right-click** Notimanager and select **Open** (first launch only)
-5. **Grant Accessibility permissions** when prompted
+3. Right-click Notimanager and select **Open** (first launch only)
 
-### Granting Accessibility Permissions
+## Accessibility Permissions
 
-After launching Notimanager:
+After launching, grant Accessibility permissions:
 
-1. When prompted, click **"Open System Settings"**
-2. In **System Settings** → **Privacy & Security** → **Accessibility**
-3. Find Notimanager in the list and enable the toggle
-4. You may need to enter your macOS password
+1. Click **"Open System Settings"** when prompted
+2. Go to **System Settings** → **Privacy & Security** → **Accessibility**
+3. Enable Notimanager in the list
 
-> **Note**: Accessibility permission is required for Notimanager to detect and move notification windows. The app cannot function without this permission.
+This permission is required for the app to detect and move notification windows.
 
 ## Troubleshooting
 
-### "Notimanager is damaged and can't be opened"
+### "App is damaged and can't be opened"
 
-This error occurs when macOS Gatekeeper blocks the app. To fix it:
+macOS Gatekeeper blocks unsigned apps. Right-click the app and select **Open**, or run:
 
-**Right-click the app and select Open** (first launch only)
-
-Or use the command line:
 ```bash
 xattr -cr /Applications/Notimanager.app
 open /Applications/Notimanager.app
 ```
 
-### "Notimanager cannot be opened because the developer cannot be verified"
+### "Developer cannot be verified"
 
-This appears because the app uses ad-hoc signing. To bypass:
+The app uses ad-hoc signing. Either:
 
-1. **Option 1 - Right-click method (Recommended)**:
-   - Right-click (or Control-click) on Notimanager.app
-   - Select **Open**
-   - Click **Open** in the security dialog
-   - This only needs to be done once
-
-2. **Option 2 - Allow via System Settings**:
-   - Try to open the app
-   - Click **Cancel** on the security dialog
-   - Open **System Settings** → **Privacy & Security**
-   - Find the message about Notimanager at the bottom
-   - Click **Open Anyway**
+1. Right-click Notimanager.app and select **Open**, then click **Open** in the dialog
+2. Or go to **System Settings** → **Privacy & Security** and click **Open Anyway**
 
 ### Notifications aren't moving
 
-1. Verify Accessibility permissions are granted:
-   - **System Settings** → **Privacy & Security** → **Accessibility**
-   - Ensure Notimanager is enabled
-
-2. Try toggling the permission:
-   - Turn off Notimanager's accessibility access
-   - Wait 2 seconds
-   - Turn it back on
-   - Restart Notimanager
-
-3. Check Console.app for errors:
-   - Open Console.app
-   - Filter by `dev.abd3lraouf.notimanager`
-   - Look for any error messages
+1. Verify Accessibility permissions are enabled in System Settings
+2. Toggle the permission off and on, then restart the app
+3. Check Console.app for errors (filter by `dev.abd3lraouf.notimanager`)
 
 ### App crashes on launch
 
-1. Check your macOS version (requires macOS 14.0+)
-2. Try launching from Terminal to see error messages:
+1. Verify macOS 14.0+ is installed
+2. Launch from Terminal to see error messages:
    ```bash
    /Applications/Notimanager.app/Contents/MacOS/Notimanager
    ```
@@ -100,63 +65,44 @@ This appears because the app uses ad-hoc signing. To bypass:
 
 ## Building from Source
 
-If you prefer to build the app from source code, please refer to the **[Developer Guide](DEVELOPMENT.md)** for detailed instructions.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for build instructions.
 
-## Security & Verification
+## Security
 
-This app uses ad-hoc code signing and requires:
-- **Accessibility** - To detect and move notification windows
+- Requires Accessibility permission to detect and move notification windows
+- No App Sandbox (required for Accessibility)
+- No data collection or network connections
+- All processing happens locally
 
-The app:
-- Does NOT have App Sandbox enabled (required for Accessibility)
-- Does NOT collect or transmit any data
-- Does NOT make network connections
-- Runs entirely locally on your Mac
-
-### Source Code Verification
-
-The complete source code is available on GitHub:
-https://github.com/abd3lraouf/Notimanager
-
-You can review the code, build it yourself, and verify that it matches the released version.
+Source code available at https://github.com/abd3lraouf/Notimanager
 
 ## Upgrading
 
-To upgrade to a new version:
-
-1. Quit Notimanager (click menu bar icon → Quit)
+1. Quit Notimanager
 2. Download the new release
-3. Replace the old app:
+3. Replace the app:
    ```bash
    rm -rf /Applications/Notimanager.app
    mv Downloads/Notimanager.app /Applications/
    ```
-4. Right-click and select **Open** (first launch of new version)
-5. Your settings will be preserved automatically
+4. Right-click and select **Open** (first launch)
+5. Settings are preserved automatically
 
 ## Uninstallation
 
-To completely remove Notimanager:
-
-1. Quit the app if running
+1. Quit the app
 2. Remove the app:
    ```bash
    rm -rf /Applications/Notimanager.app
    ```
-3. (Optional) Remove preferences:
+3. Optionally remove preferences:
    ```bash
    rm -rf ~/Library/Preferences/dev.abd3lraouf.notimanager.plist
    rm -rf ~/Library/Application\ Support/Notimanager
    ```
-4. (Optional) Revoke Accessibility permissions:
-   - **System Settings** → **Privacy & Security** → **Accessibility**
-   - Find Notimanager and remove it
+4. Optionally revoke Accessibility permissions in System Settings
 
-## Getting Help
+## Help
 
-If you encounter issues not covered here:
-
-- Check existing [GitHub Issues](https://github.com/abd3lraouf/Notimanager/issues)
-- Create a new issue with details about your problem
-- Include your macOS version and any error messages
-- Attach logs from Console.app if applicable
+- Check [GitHub Issues](https://github.com/abd3lraouf/Notimanager/issues) for existing problems
+- Create a new issue with your macOS version, error messages, and Console.app logs
