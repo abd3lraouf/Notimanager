@@ -110,6 +110,17 @@ jobs:
           mkdir -p build/release
           cp -R "$APP_PATH" build/release/Notimanager.app
 
+          # Re-sign all frameworks and bundles to match the app signature
+          echo "🔐 Re-signing frameworks and bundles..."
+          find build/release/Notimanager.app -name "*.framework" -o -name "*.bundle" | while read framework; do
+            echo "  Re-signing: $framework"
+            codesign --force --deep --sign "$CODE_SIGN_IDENTITY" "$framework" 2>/dev/null || true
+          done
+
+          # Re-sign the entire app to ensure consistent signature
+          echo "🔐 Re-signing entire app..."
+          codesign --force --deep --sign "$CODE_SIGN_IDENTITY" build/release/Notimanager.app
+
           # Verify code signing
           codesign -dv "build/release/Notimanager.app" 2>&1 || true
           echo "✅ App signed successfully"
