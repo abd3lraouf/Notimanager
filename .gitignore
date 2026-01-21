@@ -69,3 +69,7 @@ tools/*.pem
 *.xz
 *.p12
 *.backup.*
+*.key
+*.crt
+*.p12
+*.p12.backup.*
