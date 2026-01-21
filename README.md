@@ -58,11 +58,14 @@ Automatic updates keep you running the latest version.
 - **Offline**: The app runs entirely locally on your machine.
 - **No Sandbox**: Requires exemption from App Sandbox solely to function (moving other apps' windows requires Accessibility API).
 
-## 🔗 Resources
+## Resources
 
-- **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions.
-- **[Developer Guide](docs/DEVELOPMENT.md)** - Build from source and contribution info.
-- **[Changelog](docs/CHANGELOG.md)** - Version history.
+- **[Documentation Index](docs/)** - Complete documentation
+- **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions
+- **[Developer Guide](docs/DEVELOPMENT.md)** - Build from source
+- **[Contributing](docs/CONTRIBUTING.md)** - Contribution guidelines
+- **[Architecture](docs/ARCHITECTURE.md)** - App architecture overview
+- **[Changelog](docs/CHANGELOG.md)** - Version history
 
 ---
 
