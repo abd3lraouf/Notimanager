@@ -92,7 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🛠️ Developer Experience
 - **Setup Script**: Automated `scripts/setup-sparkle.sh` for complete Sparkle setup
-- **Documentation**: Comprehensive `docs/SPARKLE_SETUP.md` with step-by-step instructions
+- **Documentation**: Refer to [Sparkle documentation](https://sparkle-project.org/documentation/) for configuration
 - **Enhanced Icons**: Complete set of disabled state app icons
 - **Better Testing**: Updated UI tests for SwiftUI migration
 
