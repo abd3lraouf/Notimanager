@@ -209,12 +209,15 @@ EOF
         -days 3650 \
         -config cert.conf
 
-    # Create PKCS12 file with no encryption on private key
+    # Create PKCS12 file with traditional MAC for macOS compatibility
+    # Using -legacy flag for better compatibility with macOS security command
     openssl pkcs12 -export \
+        -legacy \
         -out "$CERT_P12" \
         -inkey private.key \
         -in certificate.crt \
-        -passout pass:"$KEYCHAIN_PASSWORD"
+        -passout pass:"$KEYCHAIN_PASSWORD" \
+        -macalg SHA1
 
     # Verify the PKCS12 file was created correctly
     if ! openssl pkcs12 -info -in "$CERT_P12" -nokeys -passin pass:"$KEYCHAIN_PASSWORD" >/dev/null 2>&1; then
