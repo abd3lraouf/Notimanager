@@ -75,9 +75,9 @@ jobs:
           echo "📱 Apple ID: ${APPLE_ID}"
           echo "👥 Team ID: ${APPLE_TEAM_ID}"
 
-          # Set environment for build
+          # Set environment for subsequent steps
           echo "CODE_SIGN_STYLE=Automatic" >> $GITHUB_ENV
-          echo "DEVELOPMENT_TEAM=${APPLE_TEAM_ID}" >> $GITHUB_ENV
+          echo "DEVELOPMENT_TEAM=$APPLE_TEAM_ID" >> $GITHUB_ENV
           echo "USE_CODE_SIGNING=true" >> $GITHUB_ENV
 
           echo "✅ Code signing configured"
@@ -102,12 +102,13 @@ jobs:
           echo "🔨 Building Notimanager with automatic code signing..."
 
           # Build with automatic signing - Xcode will handle certificates
+          # DEVELOPMENT_TEAM is set from GITHUB_ENV in the previous step
           xcodebuild archive \
             -scheme Notimanager \
             -archivePath build/Notimanager.xcarchive \
             -destination 'platform=macOS' \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
+            CODE_SIGN_STYLE=$CODE_SIGN_STYLE \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES || exit 1
 
