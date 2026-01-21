@@ -4,12 +4,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to build (e.g., 2.1.19)'
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -30,7 +24,7 @@ jobs:
 
       - name: Install tools
         run: |
-          echo "📦 Installing create-dmg and dependencies..."
+          echo "📦 Installing dependencies..."
           npm install --global create-dmg
           brew install librsvg
           echo "✅ Dependencies installed"
@@ -52,19 +46,6 @@ jobs:
           echo "📦 Release Tag: $TAG"
           echo "📦 App Version: $VERSION"
 
-      - name: Setup code signing
-        run: |
-          echo "🔏 Setting up code signing..."
-
-          # CI uses ad-hoc signing since certificates can't be easily exported
-          # Users will need to right-click and select "Open" on first launch
-          echo "CODE_SIGNING_REQUIRED=NO" >> $GITHUB_ENV
-          echo "CODE_SIGNING_ALLOWED=NO" >> $GITHUB_ENV
-          echo "USE_CODE_SIGNING=false" >> $GITHUB_ENV
-
-          echo "✅ Code signing configured (ad-hoc for CI)"
-          echo "⚠️  Users will need to right-click and 'Open' on first launch"
-
       - name: Update build version
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -81,33 +62,32 @@ jobs:
           echo "✅ Icons generated"
 
       - name: Build and archive
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "🔨 Building Notimanager with ad-hoc code signing..."
+          echo "🔨 Building Notimanager with Apple ID code signing..."
 
-          # Use ad-hoc signing for CI (no certificate required)
-          if [ "$USE_CODE_SIGNING" = "true" ]; then
-            echo "🔏 Using certificate-based signing"
-            xcodebuild archive \
-              -scheme Notimanager \
-              -archivePath build/Notimanager.xcarchive \
-              -destination 'platform=macOS' \
-              CODE_SIGN_STYLE=Manual \
-              CODE_SIGN_IDENTITY="Apple Development" \
-              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-              CODE_SIGNING_REQUIRED=YES \
-              CODE_SIGNING_ALLOWED=YES || exit 1
-          else
-            echo "⚠️  Using ad-hoc signing (no certificate)"
-            xcodebuild archive \
-              -scheme Notimanager \
-              -archivePath build/Notimanager.xcarchive \
-              -destination 'platform=macOS' \
-              CODE_SIGN_IDENTITY="-" \
-              CODE_SIGN_STYLE=Manual \
-              DEVELOPMENT_TEAM="" \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO || exit 1
+          # Validate credentials
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_ID_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "❌ Missing Apple credentials"
+            echo "Required secrets: APPLE_ID, APPLE_ID_PASSWORD, APPLE_TEAM_ID"
+            exit 1
           fi
+
+          echo "📱 Apple ID: $APPLE_ID"
+          echo "👥 Team ID: $APPLE_TEAM_ID"
+
+          # Build with Xcode cloud signing - Apple ID credentials allow Xcode
+          # to automatically fetch/create certificates
+          xcodebuild archive \
+            -scheme Notimanager \
+            -archivePath build/Notimanager.xcarchive \
+            -destination 'platform=macOS' \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" || exit 1
 
           echo "✅ Archive created"
 
@@ -125,7 +105,6 @@ jobs:
             echo "✅ App icon copied"
           fi
 
-          # Verify the app was copied
           if [ -d "build/release/Notimanager.app" ]; then
             echo "✅ App bundle exported"
             ls -la build/release/Notimanager.app
@@ -146,18 +125,12 @@ jobs:
         run: |
           echo "💿 Creating DMG installer..."
 
-          # Find available certificate for DMG signing
-          CERT_ID=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | awk '{print $2}')
+          # Create DMG with create-dmg (npm version)
+          create-dmg build/release/Notimanager.app build/
 
-          if [ -n "$CERT_ID" ]; then
-            echo "🔏 Signing DMG with Apple Development certificate: $CERT_ID"
-            ./scripts/create-dmg.sh --sign "$CERT_ID"
-          else
-            echo "⚠️  No certificate found, creating unsigned DMG"
-            ./scripts/create-dmg.sh --dev --no-sign
-          fi
-
-          if [ -f "build/Notimanager-macOS.dmg" ]; then
+          if [ -f "build/Notimanager *.dmg" ]; then
+            # Rename to standard name
+            mv "build/Notimanager "*.dmg" "build/Notimanager-macOS.dmg" 2>/dev/null || true
             echo "✅ DMG created"
             ls -lh build/Notimanager-macOS.dmg
           else
@@ -222,7 +195,6 @@ jobs:
             echo "✅ Downloaded existing appcast.xml"
           else
             echo "📝 No existing appcast found, creating new one..."
-            mkdir -p updates
             echo '<?xml version="1.0" encoding="UTF-8"?>' > updates/appcast.xml
             echo '<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">' >> updates/appcast.xml
             echo '    <channel>' >> updates/appcast.xml
