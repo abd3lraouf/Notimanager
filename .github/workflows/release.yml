@@ -224,14 +224,14 @@ jobs:
             echo "✅ Downloaded existing appcast.xml"
           else
             echo "📝 No existing appcast found, creating new one..."
-            cat > updates/appcast.xml << 'EOF'
+            cat > updates/appcast.xml << 'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>Notimanager</title>
     </channel>
 </rss>
-EOF
+XML
           fi
 
           # 2. Run Python script to APPEND the new version entry
