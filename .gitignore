@@ -68,3 +68,4 @@ tools/*.pem
 
 *.xz
 *.p12
+*.backup.*
