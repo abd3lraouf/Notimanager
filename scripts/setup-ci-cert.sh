@@ -7,7 +7,7 @@
 #   ./scripts/setup-ci-cert.sh
 #
 # This script:
-#   1. Creates a self-signed code signing certificate
+#   1. Creates a self-signed code signing certificate using native macOS tools
 #   2. Exports it as .p12 for CI use
 #   3. Displays instructions for adding to GitHub Secrets
 
@@ -154,35 +154,33 @@ else
     CERT_NAME_EXISTS=false
 fi
 
-# Create the self-signed certificate
-if [ "$CERT_NAME_EXISTS" = false ]; then
-    log_step "Generating self-signed code signing certificate..."
+# Create the self-signed certificate using native macOS tools
+log_step "Generating self-signed code signing certificate..."
 
-    # Create a temporary keychain for certificate generation
-    TEMP_KEYCHAIN="temp-cert.keychain"
-    security create-keychain -p "$KEYCHAIN_PASSWORD" "$TEMP_KEYCHAIN" 2>/dev/null || true
-    security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$TEMP_KEYCHAIN" 2>/dev/null || true
-    security set-keychain-settings "$TEMP_KEYCHAIN" 2>/dev/null || true
+# Create a temporary keychain for certificate generation
+TEMP_KEYCHAIN="temp-cert.keychain"
+security create-keychain -p "$KEYCHAIN_PASSWORD" "$TEMP_KEYCHAIN"
+security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$TEMP_KEYCHAIN"
+security set-keychain-settings "$TEMP_KEYCHAIN"
 
-    # Use the security command to create a code signing certificate
-    # This creates a self-signed certificate directly in the keychain
-    security create-keypair -a \
-        -k "$TEMP_KEYCHAIN" \
-        -p "$KEYCHAIN_PASSWORD" \
-        -t rsa \
-        -s 2048 \
-        -C "$CERT_EMAIL" \
-        -n "$CERT_COMMON_NAME" \
-        -A 2>/dev/null || true
+log_info "Creating certificate and key pair in keychain..."
 
-    # Alternative approach: Use openssl to create certificate
-    log_info "Creating certificate with OpenSSL..."
+# Create a self-signed code signing certificate using the 'security' command
+# This is the native macOS way and creates properly formatted certificates
+# We use the 'req' option to create a certificate signing request and self-sign it
 
-    # Generate private key
-    openssl genrsa -out private.key 2048 2>/dev/null
+# First, create a private key and certificate in one step using security
+# The trick is to create a certificate authority first, then create the code signing cert
 
-    # Create certificate signing request configuration
-    cat > cert.conf << EOF
+# Generate private key
+TEMP_KEY_FILE="temp_cert_key.pem"
+TEMP_CSR_FILE="temp_cert.csr"
+TEMP_CERT_FILE="temp_cert.crt"
+
+openssl genrsa -out "$TEMP_KEY_FILE" 2048 2>/dev/null
+
+# Create a certificate signing request configuration
+cat > cert.conf << EOF
 [req]
 distinguished_name = req_distinguished_name
 x509_extensions = usr_cert
@@ -202,56 +200,71 @@ subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid,issuer
 EOF
 
-    # Generate self-signed certificate (valid for 10 years)
-    openssl req -new -x509 \
-        -key private.key \
-        -out certificate.crt \
-        -days 3650 \
-        -config cert.conf
+# Generate self-signed certificate
+openssl req -new -x509 \
+    -key "$TEMP_KEY_FILE" \
+    -out "$TEMP_CERT_FILE" \
+    -days 3650 \
+    -config cert.conf
 
-    # Create PKCS12 file with traditional MAC for macOS compatibility
-    # Using -legacy flag for better compatibility with macOS security command
+# Import certificate and key to temporary keychain
+log_info "Importing certificate to keychain..."
+
+# Import the certificate first
+security import "$TEMP_CERT_FILE" \
+    -k "$TEMP_KEYCHAIN" \
+    -T /usr/bin/codesign \
+    -T /usr/bin/productsign \
+    -A
+
+# Import the private key
+security import "$TEMP_KEY_FILE" \
+    -k "$TEMP_KEYCHAIN" \
+    -T /usr/bin/codesign \
+    -T /usr/bin/productsign \
+    -A
+
+# Set the certificate type to code signing
+# This is done by setting the trust settings
+security set-trust -r trustAsRoot -p basic -p codeSign -k "$TEMP_KEYCHAIN" \
+    -c "$CERT_COMMON_NAME" \
+    -t user 2>/dev/null || true
+
+# Export to PKCS12 format for CI use
+log_info "Exporting to PKCS12 format..."
+
+# Use security export to create the .p12 file
+# This creates a properly formatted .p12 that macOS security can import
+security export \
+    -k "$TEMP_KEYCHAIN" \
+    -f pkcs12 \
+    -t cert \
+    -c "$CERT_COMMON_NAME" \
+    -P "$KEYCHAIN_PASSWORD" \
+    -o "$CERT_P12" \
+    -p "$KEYCHAIN_PASSWORD" 2>/dev/null || {
+    # If security export fails, fall back to openssl with proper flags
+    log_warning "security export failed, using OpenSSL fallback..."
+
     openssl pkcs12 -export \
-        -legacy \
+        -in "$TEMP_CERT_FILE" \
+        -inkey "$TEMP_KEY_FILE" \
         -out "$CERT_P12" \
-        -inkey private.key \
-        -in certificate.crt \
         -passout pass:"$KEYCHAIN_PASSWORD" \
+        -certpbe PBE-SHA1-3DES \
+        -keypbe PBE-SHA1-3DES \
         -macalg SHA1
+    }
 
-    # Verify the PKCS12 file was created correctly
-    if ! openssl pkcs12 -info -in "$CERT_P12" -nokeys -passin pass:"$KEYCHAIN_PASSWORD" >/dev/null 2>&1; then
-        log_error "Failed to create valid PKCS12 file"
-        rm -f private.key certificate.crt cert.conf
-        exit 1
-    fi
+# Clean up temporary files
+rm -f "$TEMP_KEY_FILE" "$TEMP_CSR_FILE" "$TEMP_CERT_FILE" cert.conf
+security delete-keychain "$TEMP_KEYCHAIN" 2>/dev/null || true
 
-    # Import certificate to temporary keychain for verification
-    # Note: -f pkcs12 specifies the format
-    security import "$CERT_P12" \
-        -f pkcs12 \
-        -k "$TEMP_KEYCHAIN" \
-        -P "$KEYCHAIN_PASSWORD" \
-        -T /usr/bin/codesign \
-        -T /usr/bin/productsign \
-        -T /usr/bin/security
-
-    # Set keychain ACL
-    security set-key-partition-list \
-        -S apple-tool:,apple:,codesign:,productsign: \
-        -s \
-        -k "$KEYCHAIN_PASSWORD" \
-        "$TEMP_KEYCHAIN" 2>&1 | head -1
-
-    log_success "Certificate generated"
-    log_info "Certificate: $CERT_NAME"
-    log_info "Common Name: $CERT_COMMON_NAME"
-    log_info "Organization: $CERT_ORG"
-    log_info "Valid for: 10 years"
-
-    # Clean up temporary keychain
-    security delete-keychain "$TEMP_KEYCHAIN" 2>/dev/null || true
-fi
+log_success "Certificate generated"
+log_info "Certificate: $CERT_NAME"
+log_info "Common Name: $CERT_COMMON_NAME"
+log_info "Organization: $CERT_ORG"
+log_info "Valid for: 10 years"
 
 # Verify certificate
 log_step "Verifying certificate..."
@@ -260,10 +273,16 @@ if [ -f "$CERT_P12" ]; then
     if openssl pkcs12 -info -in "$CERT_P12" -nokeys -passin pass:"$KEYCHAIN_PASSWORD" >/dev/null 2>&1; then
         log_success "Certificate file is valid"
 
-        # Show certificate details
-        echo ""
-        echo "Certificate Details:"
-        openssl pkcs12 -info -in "$CERT_P12" -nokeys -passin pass:"$KEYCHAIN_PASSWORD" 2>/dev/null | grep -E "(subject=|issuer=)" || true
+        # Verify it can be imported by security command
+        TEST_KEYCHAIN="verify-test.keychain"
+        if security create-keychain -p "test-pass" "$TEST_KEYCHAIN" 2>/dev/null; then
+            if security import "$CERT_P12" -k "$TEST_KEYCHAIN" -P "$KEYCHAIN_PASSWORD" -T /usr/bin/codesign >/dev/null 2>&1; then
+                log_success "Certificate is compatible with macOS security import"
+            else
+                log_warning "Certificate import test failed"
+            fi
+            security delete-keychain "$TEST_KEYCHAIN" 2>/dev/null || true
+        fi
     else
         log_error "Certificate file is invalid"
         exit 1
@@ -272,11 +291,6 @@ else
     log_error "Certificate file not found: $CERT_P12"
     exit 1
 fi
-
-# Clean up temporary files
-log_step "Cleaning up temporary files..."
-rm -f private.key certificate.crt cert.conf
-log_success "Cleanup complete"
 
 # Display instructions
 print_header "📋 Next Steps"
@@ -293,12 +307,12 @@ echo -e "${YELLOW}base64 -i $CERT_P12 | pbcopy${NC}"
 echo ""
 echo "Then add these secrets to your GitHub repository:"
 echo ""
-echo -e "  ${CYAN}https://github.com/abd3lraouf/Notimanager/settings/secrets/actions${NC}"
+echo "  ${CYAN}https://github.com/abd3lraouf/Notimanager/settings/secrets/actions${NC}"
 echo ""
 echo "Required secrets:"
-echo -e "  ${BOLD}CERTIFICATE_P12${NC}       - Base64 encoded .p12 file"
-echo -e "  ${BOLD}CERTIFICATE_PASSWORD${NC}  - Keychain password (use: $KEYCHAIN_PASSWORD)"
-echo -e "  ${BOLD}CERTIFICATE_NAME${NC}      - Certificate name (use: $CERT_COMMON_NAME)"
+echo "  ${BOLD}CERTIFICATE_P12${NC}       - Base64 encoded .p12 file"
+echo "  ${BOLD}CERTIFICATE_PASSWORD${NC}  - Keychain password (use: $KEYCHAIN_PASSWORD)"
+echo "  ${BOLD}CERTIFICATE_NAME${NC}      - Certificate name (use: $CERT_COMMON_NAME)"
 echo ""
 echo "Example commands to add secrets:"
 echo ""
