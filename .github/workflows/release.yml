@@ -84,34 +84,35 @@ jobs:
           echo "🔨 Building Notimanager..."
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Build archive
+          # Build directly to derived data (no archive/export needed for self-signed certs)
           xcodebuild -project Notimanager.xcodeproj \
             -scheme Notimanager \
             -configuration Release \
-            -archivePath "build/Notimanager.xcarchive" \
             CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="" \
-            archive
+            ONLY_ACTIVE_ARCH=NO
 
-          echo "✅ Archive created"
+          # Find the built app
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Notimanager.app" -path "*/Release-iphoneos/*" 2>/dev/null | head -1)
 
-          # Export app
-          xcodebuild -exportArchive \
-            -archivePath "build/Notimanager.xcarchive" \
-            -exportPath "build/release" \
-            -exportOptionsPlist scripts/ExportOptions.plist
+          if [ -z "$APP_PATH" ]; then
+            # Alternative location for macOS builds
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Notimanager.app" -path "*/Build/Products/Release/*" 2>/dev/null | head -1)
+          fi
 
-          echo "✅ App exported"
-
-          # Verify code signing
-          if [ -d "build/release/Notimanager.app" ]; then
-            codesign -dv "build/release/Notimanager.app" 2>&1 || true
-            echo "✅ App signed successfully"
-          else
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
             echo "❌ App not found after build"
             exit 1
           fi
+
+          # Copy app to build directory
+          mkdir -p build/release
+          cp -R "$APP_PATH" build/release/Notimanager.app
+
+          # Verify code signing
+          codesign -dv "build/release/Notimanager.app" 2>&1 || true
+          echo "✅ App signed successfully"
 
       - name: Create DMG
         run: |
