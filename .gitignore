@@ -67,3 +67,4 @@ tools/*.pem
 ~/.notimanager-secrets/
 
 *.xz
+*.p12
