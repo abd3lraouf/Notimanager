@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Notimanager DMG Creation Script
-# Uses create-dmg shell script for beautiful DMG creation
-# https://github.com/create-dmg/create-dmg
+# Uses create-dmg npm package for beautiful DMG creation
+# https://github.com/sindresorhus/create-dmg
 #
 # Usage:
 #   ./scripts/create-dmg.sh [options]
@@ -11,10 +11,10 @@
 #   --dev, -d           Enable local dev mode (no signing, faster build)
 #   --release, -r       Enable release mode (with code signing if available)
 #   --no-sign           Force skip code signing
-#   --sign CERT         Use specific certificate for signing
-#   --verify            Verify DMG after creation
+#   --identity CERT     Manually set code signing identity
+#   --overwrite         Overwrite existing DMG
 #   --test              Open DMG after creation for testing
-#   --output FILE       Custom output filename
+#   --output DIR        Custom output directory
 #   --help, -h          Show this help message
 
 set -e
@@ -27,26 +27,14 @@ APP_NAME="Notimanager"
 APP_FILE="Notimanager.app"
 SOURCE_APP="build/release/${APP_FILE}"
 BUILD_DIR="build"
-DMG_TEMP_DIR="build/dmg-temp"
-DEFAULT_OUTPUT="${BUILD_DIR}/${APP_NAME}-macOS.dmg"
-
-# DMG appearance settings
-VOLNAME="${APP_NAME}"
-WINDOW_SIZE="600 400"
-WINDOW_POS="400 300"
-ICON_SIZE="100"
-APP_ICON_POS="150 190"
-DROP_LINK_POS="450 190"
-
-# Background image (optional - will use default if not found)
-BACKGROUND_IMG=""
+DEFAULT_OUTPUT_DIR="${BUILD_DIR}"
 
 # Default mode
 DEV_MODE=false
 RELEASE_MODE=false
 FORCE_NO_SIGN=false
-SPECIFIC_CERT=""
-VERIFY_DMG=false
+IDENTITY=""
+OVERWRITE=false
 TEST_DMG=false
 CUSTOM_OUTPUT=""
 
@@ -59,7 +47,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
 CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
 BOLD='\033[1m'
 NC='\033[0m'
 
@@ -101,26 +88,29 @@ ${BOLD}Usage:${NC}
   $0 [options]
 
 ${BOLD}Options:${NC}
-  ${GREEN}--dev, -d${NC}          Enable local dev mode (fast, no signing)
+  ${GREEN}--dev, -d${NC}          Enable local dev mode (fast, no DMG signing)
   ${GREEN}--release, -r${NC}      Enable release mode (with code signing)
   ${GREEN}--no-sign${NC}          Force skip code signing
-  ${GREEN}--sign CERT${NC}        Use specific certificate for signing
-  ${GREEN}--verify${NC}           Verify DMG after creation
+  ${GREEN}--identity CERT${NC}    Manually set code signing identity
+  ${GREEN}--overwrite${NC}        Overwrite existing DMG
   ${GREEN}--test${NC}             Open DMG after creation for testing
-  ${GREEN}--output FILE${NC}      Custom output filename
+  ${GREEN}--output DIR${NC}       Custom output directory
   ${GREEN}--help, -h${NC}         Show this help message
 
 ${BOLD}Examples:${NC}
   $0 --dev              # Create DMG in dev mode (fast)
   $0 --release          # Create DMG in release mode
   $0 --dev --test       # Create and test DMG
-  $0 --verify           # Create and verify DMG
+  $0 --overwrite        # Overwrite existing DMG
 
 ${BOLD}Local Development Workflow:${NC}
   1. Build the app:     ./scripts/build.sh export
   2. Create DMG:        ./scripts/create-dmg.sh --dev
   3. Test DMG:          ./scripts/create-dmg.sh --dev --test
-  4. Verify:            ./scripts/create-dmg.sh --dev --verify
+
+${BOLD}Release Workflow:${NC}
+  1. Build the app:     ./scripts/build.sh export
+  2. Create DMG:        ./scripts/create-dmg.sh --release
 
 EOF
 }
@@ -141,12 +131,12 @@ parse_args() {
                 FORCE_NO_SIGN=true
                 shift
                 ;;
-            --sign)
-                SPECIFIC_CERT="$2"
+            --identity)
+                IDENTITY="$2"
                 shift 2
                 ;;
-            --verify)
-                VERIFY_DMG=true
+            --overwrite)
+                OVERWRITE=true
                 shift
                 ;;
             --test)
@@ -177,9 +167,9 @@ check_dependencies() {
 
     local missing_deps=false
 
-    # Check for create-dmg
+    # Check for create-dmg (npm version)
     if ! command -v create-dmg &> /dev/null; then
-        log_warning "create-dmg not found"
+        log_warning "create-dmg (npm) not found"
         missing_deps=true
     fi
 
@@ -189,21 +179,18 @@ check_dependencies() {
         missing_deps=true
     fi
 
-    # Check for hdiutil
-    if ! command -v hdiutil &> /dev/null; then
-        log_warning "hdiutil not found"
-        missing_deps=true
-    fi
-
     if [ "$missing_deps" = true ]; then
         log_error "Missing required dependencies"
         echo ""
         echo "Please install missing dependencies:"
-        echo "  brew install create-dmg"
+        echo "  npm install --global create-dmg"
         exit 1
     fi
 
-    log_success "All dependencies found"
+    # Get create-dmg version
+    local dmg_version
+    dmg_version=$(create-dmg --version 2>/dev/null || echo "unknown")
+    log_success "Using create-dmg: ${dmg_version}"
 }
 
 # Check if app exists
@@ -241,50 +228,57 @@ get_app_info() {
     log_info "App Version: ${VERSION} (Build ${BUILD_NUM})"
 }
 
-# Check for create-dmg
-check_create_dmg() {
-    if command -v create-dmg &> /dev/null; then
-        CREATE_DMG_VERSION=$(create-dmg --version 2>/dev/null || echo "unknown")
-        log_success "Using create-dmg: ${CREATE_DMG_VERSION}"
-    else
-        log_error "create-dmg not found"
-        echo ""
-        echo "Please install create-dmg:"
-        echo "  brew install create-dmg"
-        exit 1
-    fi
-}
-
 # Determine code signing approach
 setup_code_signing() {
     log_step "Setting up code signing..."
 
     # Dev mode: skip DMG code signing
     if [ "$DEV_MODE" = true ]; then
-        log_info "Dev mode: Using ad-hoc signing for app, no DMG signing"
+        log_info "Dev mode: Skipping DMG code signing"
+        CODE_SIGN_DMG=false
         return
     fi
 
     # Force no sign
     if [ "$FORCE_NO_SIGN" = true ]; then
         log_info "Skipping DMG code signing (forced)"
+        CODE_SIGN_DMG=false
         return
     fi
 
-    # Use specific certificate
-    if [ -n "$SPECIFIC_CERT" ]; then
-        log_info "Will use specified certificate for DMG: ${SPECIFIC_CERT}"
-    else
-        # Auto-detect certificate
-        local cert_id
-        cert_id=$(security find-identity -v -p codesigning 2>/dev/null | grep -i "notimanager\|developer id application" | head -1 | awk '{print $2}' || echo "")
+    # Use specified identity
+    if [ -n "$IDENTITY" ]; then
+        log_info "Using specified identity for DMG: ${IDENTITY}"
+        CODE_SIGN_DMG=true
+        return
+    fi
 
-        if [ -n "$cert_id" ]; then
-            SPECIFIC_CERT="$cert_id"
-            log_success "Found certificate for DMG: ${cert_id}"
-        else
-            log_warning "No certificate found, DMG will not be code signed"
-        fi
+    # Auto-detect certificate - priority order
+    local cert_id=""
+    local cert_name=""
+
+    # 1) Developer ID Application (best for distribution)
+    if security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application"; then
+        cert_id=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | head -1 | awk '{print $2}')
+        cert_name="Developer ID Application"
+    # 2) Apple Development (for development)
+    elif security find-identity -v -p codesigning 2>/dev/null | grep -q "Apple Development"; then
+        cert_id=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | awk '{print $2}')
+        cert_name="Apple Development"
+    # 3) Notimanager self-signed
+    elif security find-identity -v -p codesigning 2>/dev/null | grep -qi "notimanager"; then
+        cert_id=$(security find-identity -v -p codesigning 2>/dev/null | grep -i "notimanager" | head -1 | awk '{print $2}')
+        cert_name="Notimanager self-signed"
+    fi
+
+    if [ -n "$cert_id" ]; then
+        IDENTITY="$cert_id"
+        CODE_SIGN_DMG=true
+        log_success "Found certificate for DMG: ${cert_name} (${cert_id})"
+    else
+        log_warning "No code signing certificate found"
+        log_info "DMG will not be code signed"
+        CODE_SIGN_DMG=false
     fi
 }
 
@@ -294,8 +288,8 @@ sign_app() {
 
     local sign_identity="-"
 
-    if [ -n "$SPECIFIC_CERT" ]; then
-        sign_identity="$SPECIFIC_CERT"
+    if [ -n "$IDENTITY" ]; then
+        sign_identity="$IDENTITY"
     fi
 
     # Force re-sign with deep option
@@ -314,69 +308,61 @@ sign_app() {
     fi
 }
 
-# Create DMG
+# Create DMG using npm create-dmg
 create_dmg() {
     log_step "Creating DMG..."
 
-    local output_file="${CUSTOM_OUTPUT:-${DEFAULT_OUTPUT}}"
+    local output_dir="${CUSTOM_OUTPUT:-${DEFAULT_OUTPUT_DIR}}"
 
-    # Remove existing DMG if it exists
-    if [ -f "$output_file" ]; then
-        log_info "Removing existing DMG..."
-        rm -f "$output_file"
-    fi
-
-    # Prepare source folder for create-dmg
-    local source_folder="${DMG_TEMP_DIR}"
-    rm -rf "${source_folder}"
-    mkdir -p "${source_folder}"
-
-    # Copy app to source folder
-    log_info "Preparing DMG contents..."
-    cp -R "$SOURCE_APP" "${source_folder}/"
+    # Ensure output directory exists
+    mkdir -p "$output_dir"
 
     # Build create-dmg command
-    local create_dmg_cmd=(
-        create-dmg
-        --volname "${VOLNAME}"
-        --window-pos ${WINDOW_POS}
-        --window-size ${WINDOW_SIZE}
-        --icon-size ${ICON_SIZE}
-        --icon "${APP_FILE}" ${APP_ICON_POS}
-        --hide-extension "${APP_FILE}"
-        --app-drop-link ${DROP_LINK_POS}
-    )
+    local create_dmg_cmd=("create-dmg")
 
-    # Add background if available
-    if [ -n "$BACKGROUND_IMG" ] && [ -f "$BACKGROUND_IMG" ]; then
-        create_dmg_cmd+=(--background "${BACKGROUND_IMG}")
-        log_info "Using background image: ${BACKGROUND_IMG}"
+    # Add overwrite flag
+    if [ "$OVERWRITE" = true ]; then
+        create_dmg_cmd+=("--overwrite")
     fi
 
-    # Add code signing for the DMG itself (not the app)
-    if [ "$DEV_MODE" = false ] && [ "$FORCE_NO_SIGN" = false ] && [ -n "$SPECIFIC_CERT" ]; then
-        create_dmg_cmd+=(--codesign "${SPECIFIC_CERT}")
-        log_info "DMG will be codesigned with: ${SPECIFIC_CERT}"
+    # Add code signing identity
+    if [ "$CODE_SIGN_DMG" = true ] && [ -n "$IDENTITY" ]; then
+        create_dmg_cmd+=("--identity=${IDENTITY}")
+        log_info "DMG will be codesigned with: ${IDENTITY}"
     fi
 
-    # Add verbosity option for dev mode
-    if [ "$DEV_MODE" = true ]; then
-        create_dmg_cmd+=(--hdiutil-verbose)
+    # Skip code signing if needed
+    if [ "$CODE_SIGN_DMG" = false ]; then
+        create_dmg_cmd+=("--no-code-sign")
+        log_info "DMG code signing disabled"
     fi
 
-    # Output file and source folder
-    create_dmg_cmd+=("${output_file}")
-    create_dmg_cmd+=("${source_folder}")
+    # Add app and output directory
+    create_dmg_cmd+=("${SOURCE_APP}")
+    create_dmg_cmd+=("${output_dir}")
 
     log_info "Running create-dmg..."
-    log_info "Output: ${output_file}"
+    log_info "Source: ${SOURCE_APP}"
+    log_info "Output: ${output_dir}"
 
     # Execute create-dmg
     if "${create_dmg_cmd[@]}" 2>&1; then
-        # Clean up temp folder
-        rm -rf "${source_folder}"
+        # Find the created DMG (create-dmg adds version to filename)
+        local dmg_name="${APP_NAME} ${VERSION}.dmg"
+        local dmg_path="${output_dir}/${dmg_name}"
 
-        DMG_PATH="${output_file}"
+        # Also check for the alternative naming without version
+        if [ ! -f "$dmg_path" ]; then
+            # Try to find any DMG in the output directory
+            dmg_path=$(find "${output_dir}" -name "${APP_NAME}*.dmg" -maxdepth 1 | head -1)
+        fi
+
+        if [ -z "$dmg_path" ] || [ ! -f "$dmg_path" ]; then
+            log_error "Could not find created DMG"
+            exit 1
+        fi
+
+        DMG_PATH="${dmg_path}"
         DMG_SIZE=$(du -h "$DMG_PATH" | cut -f1)
 
         log_success "DMG created: ${DMG_PATH}"
@@ -385,59 +371,8 @@ create_dmg() {
         # Return DMG path for further processing
         echo "$DMG_PATH"
     else
-        # Clean up temp folder
-        rm -rf "${source_folder}"
         log_error "DMG creation failed"
         exit 1
-    fi
-}
-
-# Verify DMG
-verify_dmg() {
-    local dmg_path="$1"
-
-    log_step "Verifying DMG..."
-
-    # Basic checks
-    if [ ! -f "$dmg_path" ]; then
-        log_error "DMG not found: ${dmg_path}"
-        return 1
-    fi
-
-    # Check DMG format
-    local format
-    format=$(hdiutil imageinfo "$dmg_path" 2>/dev/null | grep "Format:" | head -1 | awk -F': ' '{print $2}')
-
-    if [ -n "$format" ]; then
-        log_success "Format: ${format}"
-    fi
-
-    # Check checksum
-    local checksum
-    checksum=$(hdiutil imageinfo "$dmg_path" 2>/dev/null | grep "Checksum type" | head -1)
-
-    if [ -n "$checksum" ]; then
-        log_info "Checksum: ${checksum}"
-    fi
-
-    # Verify DMG is mountable
-    log_info "Testing DMG mount..."
-    if hdiutil attach "$dmg_path" -readonly -noverify -quiet 2>/dev/null; then
-        log_success "DMG is mountable"
-
-        # Check if app is inside
-        local mount_point
-        mount_point=$(hdiutil attach "$dmg_path" -readonly -noverify -quiet 2>/dev/null | grep "/Volumes" | awk '{print $3}')
-
-        if [ -d "${mount_point}/${APP_NAME}.app" ]; then
-            log_success "App bundle found in DMG"
-        else
-            log_warning "App bundle not found in DMG"
-        fi
-
-        hdiutil detach "$mount_point" -quiet 2>/dev/null || true
-    else
-        log_warning "Could not mount DMG for verification"
     fi
 }
 
@@ -474,18 +409,27 @@ show_summary() {
         echo "   Use --release for production builds"
     fi
 
+    if [ "$CODE_SIGN_DMG" = true ]; then
+        echo ""
+        echo "🔐 Code signing: Enabled (${IDENTITY})"
+    else
+        echo ""
+        echo "🔓 Code signing: Disabled"
+    fi
+
     echo ""
     echo "🔧 Commands:"
     echo "   Open DMG:     open ${dmg_path}"
     echo "   Mount:        hdiutil attach ${dmg_path}"
     echo "   Verify:       hdiutil imageinfo ${dmg_path}"
 
-    if [ "$DEV_MODE" = false ] && [ "$FORCE_NO_SIGN" = false ]; then
+    if [ "$DEV_MODE" = false ] && [ "$CODE_SIGN_DMG" = true ]; then
         echo ""
         echo "📋 For distribution:"
-        echo "   1. Test the DMG installation"
-        echo "   2. Upload to GitHub Releases"
-        echo "   3. Update documentation"
+        echo "   1. Notarize the DMG"
+        echo "   2. Test the DMG installation"
+        echo "   3. Upload to GitHub Releases"
+        echo "   4. Update documentation"
     fi
 
     echo ""
@@ -516,7 +460,6 @@ main() {
     check_dependencies
     check_app_exists
     get_app_info
-    check_create_dmg
     setup_code_signing
     echo ""
 
@@ -527,12 +470,6 @@ main() {
     # Create DMG
     dmg_path=$(create_dmg)
     echo ""
-
-    # Verify if requested
-    if [ "$VERIFY_DMG" = true ]; then
-        verify_dmg "$dmg_path"
-        echo ""
-    fi
 
     # Test if requested
     if [ "$TEST_DMG" = true ]; then

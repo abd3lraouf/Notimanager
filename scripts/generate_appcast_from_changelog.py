@@ -1,156 +1,64 @@
 #!/usr/bin/env python3
 """
-Generate Sparkle appcast.xml from CHANGELOG.md.
+Generate Sparkle appcast.xml entries from CHANGELOG.md.
 
-This script parses CHANGELOG.md to extract all released versions
-and generates a complete appcast.xml with entries for each version.
+This script extracts release notes for a specific version from CHANGELOG.md
+and appends it as a new <item> to an existing appcast.xml file.
+This preserves historical signatures and version entries.
 """
 
 import argparse
-import re
+import os
 import sys
-from datetime import datetime
+import re
+import datetime
+import xml.etree.ElementTree as ET
+from html import escape
+
+# Sparkle namespace
+SPARKLE_NS = {'sparkle': 'http://www.andymatuschak.org/xml-namespaces/sparkle'}
+ET.register_namespace('sparkle', SPARKLE_NS['sparkle'])
 
 
-def parse_changelog(changelog_path):
-    """Parse CHANGELOG.md and extract version information.
+def get_release_notes(changelog_path, version):
+    """Extracts markdown notes for a version and converts to styled HTML.
 
     Args:
         changelog_path: Path to CHANGELOG.md
+        version: Version string (e.g., "2.1.5")
 
     Returns:
-        List of dicts with version info: {version, date, content}
+        HTML string with styled release notes
     """
-    with open(changelog_path, 'r', encoding='utf-8') as f:
-        content = f.read()
+    try:
+        with open(changelog_path, 'r', encoding='utf-8') as f:
+            content = f.read()
 
-    versions = []
+        # Extract content for this version
+        # Match: ## [X.Y.Z] - DATE
+        pattern = rf'^## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}'
+        match = re.search(pattern, content, re.MULTILINE)
 
-    # Find all version sections: ## [X.Y.Z] - YYYY-MM-DD
-    pattern = r'^## \[([0-9.]+)\] - (\d{4}-\d{2}-\d{2})'
-    matches = list(re.finditer(pattern, content, re.MULTILINE))
+        if not match:
+            print(f"⚠️  No entry found for version {version} in CHANGELOG.md")
+            return "<p>No release notes available.</p>"
 
-    for i, match in enumerate(matches):
-        version = match.group(1)
-        date_str = match.group(2)
-
-        # Extract content for this version (until next version or EOF)
+        # Find the end (next version header or EOF)
         start_pos = match.end()
-        if i + 1 < len(matches):
-            end_pos = matches[i + 1].start()
+        next_match = re.search(r'^## \[', content[start_pos:], re.MULTILINE)
+
+        if next_match:
+            end_pos = start_pos + next_match.start()
         else:
             end_pos = len(content)
 
-        version_content = content[start_pos:end_pos].strip()
+        markdown_content = content[start_pos:end_pos].strip()
 
-        versions.append({
-            'version': version,
-            'date': date_str,
-            'content': version_content
-        })
+        # Convert markdown to HTML
+        html = markdown_to_html(markdown_content)
 
-    return versions
-
-
-def markdown_to_html(markdown_content):
-    """Convert markdown changelog content to HTML.
-
-    Args:
-        markdown_content: Markdown text
-
-    Returns:
-        HTML string
-    """
-    html_lines = []
-
-    for line in markdown_content.split('\n'):
-        # Subheaders: ### Category -> <h4>Category</h4>
-        if line.startswith('### '):
-            text = line[4:].strip()
-            html_lines.append(f'<h4>{text}</h4>')
-
-        # List items
-        elif re.match(r'^\s*-\s+', line) or re.match(r'^\s*\*\s+', line):
-            item_text = re.sub(r'^\s*[-*]\s+', '', line).strip()
-            # Bold text
-            item_text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', item_text)
-            # Inline code
-            item_text = re.sub(r'`(.*?)`', r'<code>\1</code>', item_text)
-            html_lines.append(f'<li>{item_text}</li>')
-
-        # Empty line
-        elif not line.strip():
-            html_lines.append('')
-
-    # Wrap list items
-    result = []
-    in_list = False
-
-    for line in html_lines:
-        if line.startswith('<li>'):
-            if not in_list:
-                result.append('<ul>')
-                in_list = True
-            result.append(line)
-        elif line:
-            if in_list:
-                result.append('</ul>')
-                in_list = False
-            result.append(line)
-        else:
-            result.append('')
-
-    if in_list:
-        result.append('</ul>')
-
-    return '\n'.join(result)
-
-
-def parse_current_appcast(appcast_path):
-    """Parse current appcast.xml to extract enclosure info.
-
-    Args:
-        appcast_path: Path to appcast.xml
-
-    Returns:
-        Dict with enclosure info: {url, length, type, ed_signature}
-    """
-    with open(appcast_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    # Extract enclosure info
-    url_match = re.search(r'url="([^"]+)"', content)
-    length_match = re.search(r'length="(\d+)"', content)
-    type_match = re.search(r'type="([^"]+)"', content)
-    sig_match = re.search(r'sparkle:edSignature="([^"]+)"', content)
-
-    return {
-        'url': url_match.group(1) if url_match else '',
-        'length': length_match.group(1) if length_match else '0',
-        'type': type_match.group(1) if type_match else 'application/octet-stream',
-        'ed_signature': sig_match.group(1) if sig_match else ''
-    }
-
-
-def generate_appcast_item(version_info, enclosure_info, is_current=False):
-    """Generate an appcast <item> element for a version.
-
-    Args:
-        version_info: Dict with version, date, content
-        enclosure_info: Dict with url, length, type, ed_signature
-        is_current: If True, use real enclosure info; if False, use placeholder
-
-    Returns:
-        XML string for the <item>
-    """
-    version = version_info['version']
-    date_str = version_info['date']
-
-    # Convert markdown content to HTML
-    html_content = markdown_to_html(version_info['content'])
-
-    # Style for HTML
-    styled_html = f'''<!DOCTYPE html>
+        # Wrap with styled HTML document
+        styled_html = f'''<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -161,6 +69,7 @@ def generate_appcast_item(version_info, enclosure_info, is_current=False):
       margin: 0;
       line-height: 1.5;
       color: #333;
+      font-size: 13px;
     }}
     h3 {{
       font-size: 16px;
@@ -198,85 +107,298 @@ def generate_appcast_item(version_info, enclosure_info, is_current=False):
   </style>
 </head>
 <body>
-{html_content}
+{html}
 </body>
 </html>'''
 
-    # Escape for CDATA
-    styled_html = styled_html.replace(']]>', ']]]]><![CDATA[>')
+        return styled_html
 
-    # Parse date to RFC 2822
+    except Exception as e:
+        print(f"❌ Error reading changelog: {e}")
+        return "<p>No release notes available.</p>"
+
+
+def markdown_to_html(markdown_content):
+    """Convert markdown changelog content to HTML.
+
+    Args:
+        markdown_content: Markdown text
+
+    Returns:
+        HTML string
+    """
+    html_lines = []
+
+    for line in markdown_content.split('\n'):
+        # Subheaders: ### Category -> <h4>Category</h4>
+        if line.startswith('### '):
+            text = line[4:].strip()
+            html_lines.append(f'<h4>{escape(text)}</h4>')
+
+        # List items
+        elif re.match(r'^\s*-\s+', line) or re.match(r'^\s*\*\s+', line):
+            item_text = re.sub(r'^\s*[-*]\s+', '', line).strip()
+            # Bold text
+            item_text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', item_text)
+            # Inline code
+            item_text = re.sub(r'`(.*?)`', r'<code>\1</code>', item_text)
+            html_lines.append(f'<li>{item_text}</li>')
+
+        # Empty line
+        elif not line.strip():
+            html_lines.append('')
+
+    # Wrap list items in <ul>
+    result = []
+    in_list = False
+
+    for line in html_lines:
+        if line.startswith('<li>'):
+            if not in_list:
+                result.append('<ul>')
+                in_list = True
+            result.append(line)
+        elif line:
+            if in_list:
+                result.append('</ul>')
+                in_list = False
+            result.append(line)
+        else:
+            result.append('')
+
+    if in_list:
+        result.append('</ul>')
+
+    return '\n'.join(result)
+
+
+def extract_version_date(changelog_path, version):
+    """Extract the release date for a version from CHANGELOG.md.
+
+    Args:
+        changelog_path: Path to CHANGELOG.md
+        version: Version string
+
+    Returns:
+        Date string in YYYY-MM-DD format or today's date
+    """
     try:
-        dt = datetime.strptime(date_str, '%Y-%m-%d')
+        with open(changelog_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        pattern = rf'^## \[{re.escape(version)}\] - (\d{{4}}-\d{{2}}-\d{{2}})'
+        match = re.search(pattern, content, re.MULTILINE)
+
+        if match:
+            return match.group(1)
+
+        # Fallback to today if not found
+        return datetime.datetime.now().strftime('%Y-%m-%d')
+
+    except Exception as e:
+        print(f"⚠️  Could not extract date for {version}: {e}")
+        return datetime.datetime.now().strftime('%Y-%m-%d')
+
+
+def update_appcast(appcast_path, version, url, signature, length, changelog_path):
+    """Append a new version entry to an existing appcast.xml.
+
+    Args:
+        appcast_path: Path to existing appcast.xml (will be created if needed)
+        version: Version string
+        url: Download URL for the DMG
+        signature: EdDSA signature
+        length: File size in bytes
+        changelog_path: Path to CHANGELOG.md
+    """
+    # Parse existing appcast or create new structure
+    if os.path.exists(appcast_path) and os.path.getsize(appcast_path) > 0:
+        try:
+            tree = ET.parse(appcast_path)
+            root = tree.getroot()
+        except ET.ParseError as e:
+            print(f"⚠️  Could not parse existing appcast: {e}")
+            print("Creating new appcast structure...")
+            root = ET.Element("rss", {
+                "xmlns:sparkle": SPARKLE_NS['sparkle'],
+                "version": "2.0"
+            })
+            ET.SubElement(root, "channel")
+            tree = ET.ElementTree(root)
+    else:
+        print("📝 Creating new appcast.xml")
+        root = ET.Element("rss", {
+            "xmlns:sparkle": SPARKLE_NS['sparkle'],
+            "version": "2.0"
+        })
+        ET.SubElement(root, "channel")
+        tree = ET.ElementTree(root)
+
+    # Get or create channel
+    channel = root.find("channel")
+    if channel is None:
+        channel = ET.SubElement(root, "channel")
+
+    # Add title if missing
+    if channel.find("title") is None:
+        title = ET.SubElement(channel, "title")
+        title.text = "Notimanager"
+
+    # Create new item
+    item = ET.Element("item")
+
+    # Title
+    ET.SubElement(item, "title").text = version
+
+    # Publication date
+    date_str = extract_version_date(changelog_path, version)
+    try:
+        dt = datetime.datetime.strptime(date_str, '%Y-%m-%d')
         pub_date = dt.strftime('%a, %d %b %Y %H:%M:%S +0000')
     except:
-        pub_date = date_str
+        pub_date = datetime.datetime.now().strftime('%a, %d %b %Y %H:%M:%S +0000')
 
-    # For current version, use real enclosure info
-    # For old versions, use placeholder URLs
-    if is_current:
-        enclosure_url = enclosure_info['url']
-        enclosure_length = enclosure_info['length']
-        enclosure_sig = enclosure_info['ed_signature']
+    ET.SubElement(item, "pubDate").text = pub_date
+
+    # Sparkle version info
+    ET.SubElement(item, "sparkle:version").text = version
+    ET.SubElement(item, "sparkle:shortVersionString").text = version
+    ET.SubElement(item, "sparkle:minimumSystemVersion").text = "14.0"
+
+    # Description (HTML release notes)
+    desc = ET.SubElement(item, "description")
+    desc_html = get_release_notes(changelog_path, version)
+    # Use CDATA for HTML content
+    desc.text = desc_html  # ElementTree will handle escaping appropriately
+
+    # Enclosure
+    enclosure = ET.SubElement(item, "enclosure")
+    enclosure.set("url", url)
+    enclosure.set("length", str(length))
+    enclosure.set("type", "application/octet-stream")
+    if signature:
+        enclosure.set(f"{{{SPARKLE_NS['sparkle']}}}edSignature", signature)
+
+    # Insert at the top (right after title element)
+    title_elem = channel.find("title")
+    if title_elem is not None:
+        title_idx = list(channel).index(title_elem)
+        channel.insert(title_idx + 1, item)
     else:
-        # Placeholder URL - Sparkle won't download old versions anyway
-        enclosure_url = f"https://github.com/abd3lraouf/Notimanager/releases/download/v{version}/Notimanager-{version}.dmg"
-        enclosure_length = "0"
-        enclosure_sig = ""
+        channel.insert(0, item)
 
-    enclosure_attr = f'url="{enclosure_url}" length="{enclosure_length}" type="{enclosure_info["type"]}"'
-    if enclosure_sig:
-        enclosure_attr += f' sparkle:edSignature="{enclosure_sig}"'
+    # Write with proper formatting
+    # ElementTree doesn't pretty-print well, so we'll use a custom approach
+    xml_str = ET.tostring(root, encoding="unicode")
 
-    return f'''        <item>
-            <title>{version}</title>
-            <pubDate>{pub_date}</pubDate>
-            <sparkle:version>{version}</sparkle:version>
-            <sparkle:shortVersionString>{version}</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure {enclosure_attr}/>
-<description><![CDATA[{styled_html}]]></description>
-        </item>'''
+    # Pretty print the XML
+    from xml.dom import minidom
+
+    dom = minidom.parseString(xml_str)
+    pretty_xml = dom.toprettyxml(indent="    ", encoding="UTF-8")
+
+    # Clean up minidom output (it adds extra newlines)
+    pretty_lines = [line for line in pretty_xml.decode('utf-8').split('\n') if line.strip()]
+
+    # Manually format with proper structure
+    with open(appcast_path, 'w', encoding='utf-8') as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        f.write('<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">\n')
+        f.write('    <channel>\n')
+
+        # Write title
+        title = channel.find("title")
+        if title is not None:
+            f.write(f'        <title>{escape(title.text)}</title>\n')
+
+        # Write items (newest first)
+        for item_elem in channel.findall("item"):
+            # Get item values
+            item_title = item_elem.find("title").text
+            item_date = item_elem.find("pubDate").text
+            item_ver = item_elem.find(f"{{{SPARKLE_NS['sparkle']}}}version")
+            item_short = item_elem.find(f"{{{SPARKLE_NS['sparkle']}}}shortVersionString")
+            item_min_os = item_elem.find(f"{{{SPARKLE_NS['sparkle']}}}minimumSystemVersion")
+            item_desc = item_elem.find("description")
+            item_enc = item_elem.find("enclosure")
+
+            f.write('        <item>\n')
+            f.write(f'            <title>{escape(item_title)}</title>\n')
+            f.write(f'            <pubDate>{escape(item_date)}</pubDate>\n')
+
+            if item_ver is not None:
+                f.write(f'            <sparkle:version>{escape(item_ver.text)}</sparkle:version>\n')
+            if item_short is not None:
+                f.write(f'            <sparkle:shortVersionString>{escape(item_short.text)}</sparkle:shortVersionString>\n')
+            if item_min_os is not None:
+                f.write(f'            <sparkle:minimumSystemVersion>{escape(item_min_os.text)}</sparkle:minimumSystemVersion>\n')
+
+            # Enclosure
+            enc_url = item_enc.get("url", "")
+            enc_len = item_enc.get("length", "0")
+            enc_sig = item_enc.get(f"{{{SPARKLE_NS['sparkle']}}}edSignature", "")
+
+            f.write('            <enclosure ')
+            f.write(f'url="{escape(enc_url)}" ')
+            f.write(f'length="{escape(enc_len)}" ')
+            f.write(f'type="application/octet-stream"')
+            if enc_sig:
+                f.write(f' sparkle:edSignature="{escape(enc_sig)}"')
+            f.write('/>\n')
+
+            # Description with CDATA
+            desc_text = item_desc.text if item_desc.text else ""
+            f.write(f'<description><![CDATA[{desc_text}]]></description>\n')
+
+            f.write('        </item>\n')
+
+        f.write('    </channel>\n')
+        f.write('</rss>\n')
+
+    print(f"✅ Appended version {version} to {appcast_path}")
+    print(f"   URL: {url}")
+    print(f"   Size: {length} bytes")
+    print(f"   Signature: {signature[:20]}..." if len(signature) > 20 else f"   Signature: {signature}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate appcast from CHANGELOG.md')
-    parser.add_argument('--changelog', required=True, help='Path to CHANGELOG.md')
-    parser.add_argument('--current-appcast', required=True, help='Path to current appcast.xml')
-    parser.add_argument('--output', required=True, help='Output path for appcast.xml')
-    parser.add_argument('--current-version', required=True, help='Current version being released')
+    parser = argparse.ArgumentParser(
+        description='Append a new version entry to appcast.xml from CHANGELOG.md',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  python3 %(prog)s --changelog docs/CHANGELOG.md --appcast updates/appcast.xml \\
+       --version 2.1.5 --url "https://..." --signature "abc123..." --length 1234567
+        '''
+    )
+
+    parser.add_argument('--changelog', required=True,
+                        help='Path to CHANGELOG.md')
+    parser.add_argument('--appcast', required=True,
+                        help='Path to existing appcast.xml (will be appended to)')
+    parser.add_argument('--version', required=True,
+                        help='Version string (e.g., 2.1.5)')
+    parser.add_argument('--url', required=True,
+                        help='Download URL for the DMG')
+    parser.add_argument('--signature', required=True,
+                        help='EdDSA signature for the DMG')
+    parser.add_argument('--length', required=True,
+                        help='File size in bytes')
 
     args = parser.parse_args()
 
-    # Parse changelog
-    versions = parse_changelog(args.changelog)
-    print(f"Found {len(versions)} versions in CHANGELOG.md")
+    if not os.path.exists(args.changelog):
+        print(f"❌ Error: CHANGELOG.md not found at {args.changelog}")
+        sys.exit(1)
 
-    # Parse current appcast for enclosure info
-    enclosure_info = parse_current_appcast(args.current_appcast)
-
-    # Generate appcast items
-    items = []
-    for v in versions:
-        is_current = (v['version'] == args.current_version)
-        item = generate_appcast_item(v, enclosure_info, is_current=is_current)
-        items.append(item)
-
-    # Build complete appcast
-    appcast_content = f'''<?xml version="1.0" standalone="yes"?>
-<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
-    <channel>
-        <title>Notimanager</title>
-{chr(10).join(items)}
-    </channel>
-</rss>'''
-
-    # Write output
-    with open(args.output, 'w', encoding='utf-8') as f:
-        f.write(appcast_content)
-
-    print(f"✅ Generated appcast with {len(items)} versions")
-    print(f"   Output: {args.output}")
+    update_appcast(
+        appcast_path=args.appcast,
+        version=args.version,
+        url=args.url,
+        signature=args.signature,
+        length=args.length,
+        changelog_path=args.changelog
+    )
 
 
 if __name__ == '__main__':

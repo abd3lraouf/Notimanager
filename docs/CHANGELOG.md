@@ -10,53 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚧 Work in Progress
 - Placeholder for upcoming changes
 
-
-## [2.1.14] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
-## [2.1.13] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
-## [2.1.12] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
-## [2.1.11] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
-## [2.1.10] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
-
-## [2.1.9] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
-## [2.1.8] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
-## [2.1.7] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
-## [2.1.6] - 2026-01-20
-
-### 🐛 Fixed
-- **Dummy Release**: Bugfix release for testing update mechanism
-
 ## [2.1.4] - 2026-01-20
 
 ### ✨ New Features
@@ -64,21 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All versions are automatically included in the appcast
   - Each version has its own release notes in HTML format
   - Sparkle aggregates newer versions' notes for updating users
-
-## [2.1.3] - 2026-01-20
-
-### 🧪 Testing
-- **Dummy Release**: Testing per-version changelog fix in Sparkle
-
-## [2.1.2] - 2026-01-20
-
-### 🧪 Testing
-- **Dummy Release**: Another version bump for testing cumulative changelogs
-
-## [2.1.1] - 2026-01-20
-
-### 🧪 Testing
-- **Dummy Release**: Version bump for testing update mechanism with cumulative changelogs
 
 ## [2.1.0] - 2026-01-20
 
@@ -98,11 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Update Logging**: Added comprehensive logging for Sparkle update lifecycle
   - Track update discovery, download, extraction, and installation stages
   - Error logging at each stage for easier debugging
-
-## [2.0.4] - 2026-01-18
-
-### 🧪 Testing
-- **Dummy Release**: Version bump for testing update mechanism
 
 ## [2.0.3] - 2026-01-18
 

@@ -22,24 +22,20 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Install create-dmg
+      - name: Install tools
         run: |
-          echo "📦 Installing create-dmg..."
-          brew install create-dmg
-          echo "✅ create-dmg installed"
-          create-dmg --version || true
+          echo "📦 Installing create-dmg and dependencies..."
+          brew install create-dmg librsvg
+          echo "✅ Dependencies installed"
 
       - name: Install Sparkle tools
         run: |
           echo "📦 Installing Sparkle for appcast generation..."
-          # Download Sparkle tools for generate_appcast
           wget https://github.com/sparkle-project/Sparkle/releases/download/2.7.0/Sparkle-2.7.0.tar.xz -O sparkle.tar.xz
           tar xf sparkle.tar.xz
-          # Sparkle 2.x extracts into the current directory (bin/ and Sparkle.framework/)
-          # We must keep the relative structure for the tool to work
           echo "✅ Sparkle tools installed"
 
-      - name: Extract version from tag
+      - name: Extract version info
         id: version
         run: |
           TAG=${GITHUB_REF#refs/tags/}
@@ -49,12 +45,36 @@ jobs:
           echo "📦 Release Tag: $TAG"
           echo "📦 App Version: $VERSION"
 
-      - name: Configure code signing
+      - name: Setup code signing
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "🔏 Using ad-hoc code signing for distribution"
-          echo "CODE_SIGN_IDENTITY=-" >> $GITHUB_ENV
-          echo "CODE_SIGNING_REQUIRED=NO" >> $GITHUB_ENV
-          echo "CODE_SIGNING_ALLOWED=NO" >> $GITHUB_ENV
+          echo "🔏 Setting up code signing with free Apple ID..."
+
+          # Check if Apple ID credentials are provided
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_ID_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "❌ Missing required secrets for code signing"
+            echo ""
+            echo "📋 Required secrets (for free Apple ID):"
+            echo "   - APPLE_ID: Your Apple ID email"
+            echo "   - APPLE_ID_PASSWORD: App-specific password (generate at appleid.apple.com)"
+            echo "   - APPLE_TEAM_ID: Your team ID (10 characters, found in Xcode)"
+            echo ""
+            echo "💡 Free Apple ID works! No Developer account needed."
+            exit 1
+          fi
+
+          echo "📱 Apple ID: ${APPLE_ID}"
+          echo "👥 Team ID: ${APPLE_TEAM_ID}"
+
+          # Set environment for build
+          echo "CODE_SIGN_STYLE=Automatic" >> $GITHUB_ENV
+          echo "DEVELOPMENT_TEAM=${APPLE_TEAM_ID}" >> $GITHUB_ENV
+          echo "USE_CODE_SIGNING=true" >> $GITHUB_ENV
+
+          echo "✅ Code signing configured"
 
       - name: Update build version
         run: |
@@ -65,12 +85,6 @@ jobs:
             Notimanager/Resources/Info.plist
           echo "✅ Build version updated to $VERSION"
 
-      - name: Install icon generation dependencies
-        run: |
-          echo "📦 Installing librsvg for icon generation..."
-          brew install librsvg
-          echo "✅ Dependencies installed"
-
       - name: Generate icons
         run: |
           echo "🎨 Generating icons from SVG sources..."
@@ -79,17 +93,17 @@ jobs:
 
       - name: Build and archive
         run: |
-          echo "🔨 Building Notimanager with ad-hoc signing..."
+          echo "🔨 Building Notimanager with automatic code signing..."
 
+          # Build with automatic signing - Xcode will handle certificates
           xcodebuild archive \
             -scheme Notimanager \
             -archivePath build/Notimanager.xcarchive \
             -destination 'platform=macOS' \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO || exit 1
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES || exit 1
 
           echo "✅ Archive created"
 
@@ -124,19 +138,21 @@ jobs:
           echo "📋 Code signature details:"
           codesign -d -r - build/release/Notimanager.app 2>&1 | head -10
 
-      - name: Create ZIP archive
-        run: |
-          echo "🗜️  Creating release archive..."
-          cd build/release
-          zip -r Notimanager-macOS.zip Notimanager.app
-          cd ../..
-          mv build/release/Notimanager-macOS.zip build/
-          echo "✅ Archive created: build/Notimanager-macOS.zip"
-
       - name: Create DMG
         run: |
           echo "💿 Creating DMG installer..."
-          ./scripts/create-dmg.sh --dev --no-sign
+
+          # Find available certificate for DMG signing
+          CERT_ID=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | awk '{print $2}')
+
+          if [ -n "$CERT_ID" ]; then
+            echo "🔏 Signing DMG with Apple Development certificate: $CERT_ID"
+            ./scripts/create-dmg.sh --sign "$CERT_ID"
+          else
+            echo "⚠️  No certificate found, creating unsigned DMG"
+            ./scripts/create-dmg.sh --dev --no-sign
+          fi
+
           if [ -f "build/Notimanager-macOS.dmg" ]; then
             echo "✅ DMG created"
             ls -lh build/Notimanager-macOS.dmg
@@ -153,55 +169,81 @@ jobs:
           echo "✅ DMG renamed to Notimanager-${VERSION}.dmg"
           ls -lh "build/Notimanager-${VERSION}.dmg"
 
-      - name: Generate appcast
-        run: |
-          echo "📡 Generating Sparkle appcast from CHANGELOG.md..."
-          VERSION="${{ steps.version.outputs.version }}"
+      # ------------------------------------------------------------------
+      # STEP: Sign Update & Prepare Appcast
+      # ------------------------------------------------------------------
 
-          # Create updates folder
+      - name: Sign Update
+        id: sign
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG_PATH="build/Notimanager-${VERSION}.dmg"
+
+          echo "🔏 Signing update package..."
+
+          # 1. Write the private key to a temp file
+          echo "$SPARKLE_PRIVATE_KEY" > sparkle_key.pem
+
+          # 2. Calculate the EdDSA Signature using Sparkle's sign_update tool
+          SIGNATURE=$(./bin/sign_update --ed-key-file sparkle_key.pem "$DMG_PATH")
+
+          # 3. Clean up the key file
+          rm sparkle_key.pem
+
+          # 4. Get File Size
+          FILE_SIZE=$(stat -f%z "$DMG_PATH")
+
+          echo "✅ Signature generated"
+          echo "   Size: $FILE_SIZE bytes"
+          echo "   Signature: ${SIGNATURE:0:30}..."
+
+          # 5. Export to GitHub Output for the next step
+          echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
+          echo "size=$FILE_SIZE" >> $GITHUB_OUTPUT
+
+      - name: Update Appcast
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+
           mkdir -p updates
 
-          # Copy DMG to updates folder
-          cp "build/Notimanager-${VERSION}.dmg" "updates/Notimanager-${VERSION}.dmg"
-
-          # Download previous release DMG for delta generation
-          echo "⬇️ Downloading previous release for delta generation..."
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            echo "Found previous tag: $PREV_TAG"
-            gh release download "$PREV_TAG" -p "*.dmg" -D updates || echo "⚠️ Could not download previous release artifacts"
+          # 1. Download EXISTING appcast.xml to preserve history
+          echo "⬇️ Downloading existing appcast from previous release..."
+          if gh release download -p appcast.xml -D updates 2>/dev/null; then
+            echo "✅ Downloaded existing appcast.xml"
           else
-            echo "⚠️ No previous tag found, skipping delta generation"
+            echo "📝 No existing appcast found, creating new one..."
+            cat > updates/appcast.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Notimanager</title>
+    </channel>
+</rss>
+EOF
           fi
 
-          # Generate base appcast with current version for signing
-          if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
-            echo "📝 Signing appcast with private key..."
-            echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | base64 -d > sparkle_private_key.pem
-            ./bin/generate_appcast updates --ed-key-file sparkle_private_key.pem
-          else
-            echo "⚠️  Generating appcast without signature (development only)"
-            ./bin/generate_appcast updates
-          fi
+          # 2. Run Python script to APPEND the new version entry
+          echo "📋 Appending new version ${VERSION} to appcast..."
 
-          # Generate complete appcast from CHANGELOG.md (all versions)
-          echo "📋 Generating complete appcast from CHANGELOG.md..."
           python3 scripts/generate_appcast_from_changelog.py \
             --changelog docs/CHANGELOG.md \
-            --current-appcast updates/appcast.xml \
-            --output updates/appcast.xml \
-            --current-version "$VERSION"
+            --appcast updates/appcast.xml \
+            --version "$VERSION" \
+            --url "https://github.com/abd3lraouf/Notimanager/releases/download/${TAG}/Notimanager-${VERSION}.dmg" \
+            --signature "${{ steps.sign.outputs.signature }}" \
+            --length "${{ steps.sign.outputs.size }}"
 
-          echo "✅ Appcast generated with all versions from CHANGELOG.md"
-          echo "📋 Appcast preview:"
+          echo ""
+          echo "📋 Appcast preview (first 50 lines):"
           head -50 updates/appcast.xml
 
-      - name: Upload appcast as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: appcast-xml
-          path: updates/appcast.xml
-          retention-days: 90
+      # ------------------------------------------------------------------
 
       - name: Generate changelog
         id: changelog
@@ -209,8 +251,7 @@ jobs:
           echo "📋 Generating changelog..."
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Extract current version only from CHANGELOG.md for both Sparkle and GitHub Release
-          # Sparkle will aggregate descriptions from multiple versions automatically
+          # Extract current version only from CHANGELOG.md
           if [ -f "docs/CHANGELOG.md" ]; then
             awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{if(!/^## \[$VERSION\]/) flag=0} flag" docs/CHANGELOG.md > release_notes_current.md 2>/dev/null || true
 
@@ -257,30 +298,15 @@ jobs:
           echo "📋 GitHub Release Notes:"
           cat release_notes_full.md
 
-      - name: Prepare release artifacts
-        id: artifacts
-        run: |
-          echo "📦 Preparing release artifacts..."
-          VERSION="${{ steps.version.outputs.version }}"
-          {
-            echo "RELEASE_FILES<<EOF"
-            echo "build/Notimanager-macOS.zip"
-            echo "build/Notimanager-${VERSION}.dmg"
-            echo "updates/appcast.xml"
-            # Include deltas if they exist
-            if ls updates/*.delta 1> /dev/null 2>&1; then
-              echo "updates/*.delta"
-            fi
-            echo "EOF"
-          } >> $GITHUB_ENV
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Notimanager ${{ steps.version.outputs.version }}
           body_path: release_notes_full.md
-          files: ${{ env.RELEASE_FILES }}
+          files: |
+            build/Notimanager-${{ steps.version.outputs.version }}.dmg
+            updates/appcast.xml
           fail_on_unmatched_files: true
           draft: false
           prerelease: false
@@ -292,8 +318,8 @@ jobs:
         with:
           name: Notimanager-${{ steps.version.outputs.version }}
           path: |
-            build/Notimanager-macOS.zip
             build/Notimanager-${{ steps.version.outputs.version }}.dmg
             build/release/Notimanager.app
+            updates/appcast.xml
           retention-days: 30
           if-no-files-found: ignore

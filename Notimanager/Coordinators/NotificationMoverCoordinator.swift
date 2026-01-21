@@ -132,7 +132,18 @@ final class NotificationMoverCoordinator: NSObject {
         logger.debug("Checking accessibility permissions...", category: "Coordinator")
         let isGranted = permissionService.checkPermissions()
 
-        logger.info("Accessibility permission check: \(isGranted ? "granted" : "denied")", category: "Coordinator")
+        // Check for stale permission state (app in settings but not trusted due to signature change)
+        let isStale = permissionService.isPermissionStateStale()
+
+        if isStale {
+            logger.warning("Detected stale accessibility permission state (code signature may have changed)", category: "Coordinator")
+            // Store this state for the UI to display appropriate message
+            UserDefaults.standard.set(true, forKey: "accessibilityPermissionIsStale")
+        } else {
+            UserDefaults.standard.set(false, forKey: "accessibilityPermissionIsStale")
+        }
+
+        logger.info("Accessibility permission check: \(isGranted ? "granted" : "denied")\(isStale ? " (stale state detected)" : "")", category: "Coordinator")
 
         if isGranted {
             logger.debug("Permissions granted, starting services", category: "Coordinator")

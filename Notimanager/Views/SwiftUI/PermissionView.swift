@@ -26,6 +26,11 @@ struct PermissionView: View {
                 // Permission explanation card
                 explanationCard
 
+                // Stale permission warning (only shown when needed)
+                if viewModel.isPermissionStale && !viewModel.isAccessibilityGranted {
+                    stalePermissionWarningCard
+                }
+
                 // Features card
                 featuresCard
 
@@ -92,6 +97,63 @@ struct PermissionView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+        }
+    }
+
+    // MARK: - Stale Permission Warning Card
+
+    private var stalePermissionWarningCard: some View {
+        BlipCard {
+            HStack(alignment: .top, spacing: 12) {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color(red: 0xFF/255.0, green: 0x95/255.0, blue: 0x00/255.0).opacity(0.2))
+                    .frame(width: 28, height: 28)
+                    .overlay {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color(red: 0xFF/255.0, green: 0x95/255.0, blue: 0x00/255.0))
+                    }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Update Detected")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("Notimanager was recently updated and needs accessibility permission to be re-granted. Even if you see Notimanager in System Settings, please remove it and add it again.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 8) {
+                        Text("1")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Text("Click \"Open System Settings\" below")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        Text("2")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Text("Remove Notimanager from the list (click −)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        Text("3")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Text("Add Notimanager back (click +)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -196,9 +258,13 @@ struct PermissionView: View {
     }
 
     private var statusMessage: String {
-        viewModel.isAccessibilityGranted
-            ? "Accessibility permission has been granted. Restart Notimanager to begin using it."
-            : "Click below to open System Settings and grant accessibility permission."
+        if viewModel.isAccessibilityGranted {
+            return "Accessibility permission has been granted. Restart Notimanager to begin using it."
+        } else if viewModel.isPermissionStale {
+            return "Notimanager appears in System Settings but macOS doesn't recognize the updated version. Please follow the steps above."
+        } else {
+            return "Click below to open System Settings and grant accessibility permission."
+        }
     }
 
     // MARK: - Action Buttons
@@ -210,7 +276,7 @@ struct PermissionView: View {
                 if viewModel.isAccessibilityGranted {
                     viewModel.restartApp()
                 } else {
-                    viewModel.requestAccessibilityPermission()
+                    viewModel.openAccessibilitySettings()
                 }
             }) {
                 Text(viewModel.isAccessibilityGranted ? "Restart Notimanager" : "Open System Settings…")

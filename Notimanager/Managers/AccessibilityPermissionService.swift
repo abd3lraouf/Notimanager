@@ -10,6 +10,8 @@
 import ApplicationServices
 import AppKit
 import Foundation
+import CryptoKit
+import CommonCrypto
 
 /// Service for managing accessibility permissions
 @available(macOS 10.15, *)
@@ -19,7 +21,16 @@ class AccessibilityPermissionService {
 
     static let shared = AccessibilityPermissionService()
 
-    private init() {}
+    // MARK: - Constants
+
+    private let codeSignatureKey = "dev.abd3lraouf.notimanager.lastCodeSignature"
+
+    // MARK: - Initialization
+
+    private init() {
+        // Check for code signature changes on init
+        _ = checkForSignatureChange()
+    }
 
     // MARK: - Permission Checking
 
@@ -49,6 +60,113 @@ class AccessibilityPermissionService {
             return AXIsProcessTrustedWithOptions(options as CFDictionary)
         }
         return checkPermissions()
+    }
+
+    // MARK: - Code Signature Tracking
+
+    /// Gets the current code signature hash of the app
+    /// - Returns: SHA256 hash of the code signature, or nil if unable to retrieve
+    private func getCurrentCodeSignature() -> String? {
+        guard Bundle.main.bundlePath != nil else { return nil }
+
+        let task = Process()
+        task.launchPath = "/usr/bin/codesign"
+        task.arguments = ["-d", "-r", "-", Bundle.main.bundlePath ?? ""]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            // We'll hash the entire output to get a stable identifier
+            return SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined()
+        } catch {
+            return nil
+        }
+    }
+
+    /// Checks if the code signature has changed since last run
+    /// - Returns: True if the signature has changed
+    private func checkForSignatureChange() -> Bool {
+        let currentSignature = getCurrentCodeSignature()
+        let lastSignature = UserDefaults.standard.string(forKey: codeSignatureKey)
+
+        if let current = currentSignature, let last = lastSignature {
+            let hasChanged = current != last
+
+            if hasChanged {
+                LoggingService.shared.info(
+                    "Code signature has changed. Old: \(last.prefix(16))... New: \(current.prefix(16))...",
+                    category: "AccessibilityPermission"
+                )
+
+                // Store the new signature
+                UserDefaults.standard.set(current, forKey: codeSignatureKey)
+
+                return true
+            }
+        } else if let current = currentSignature {
+            // First time storing signature
+            UserDefaults.standard.set(current, forKey: codeSignatureKey)
+        }
+
+        return false
+    }
+
+    /// Checks if permissions appear to be in a stale state due to code signature change
+    /// This happens when the app is in System Settings but AXIsProcessTrusted returns false
+    /// - Returns: True if permissions are likely stale due to signature mismatch
+    func isPermissionStateStale() -> Bool {
+        // If we just detected a signature change, the state is stale
+        let signatureChanged = checkForSignatureChange()
+
+        // Check if the app appears in accessibility settings but doesn't report as trusted
+        // This is a strong indicator of stale TCC database
+        let isInSystemSettings = checkIfAppIsInAccessibilitySettings()
+        let isNotTrusted = !AXIsProcessTrusted()
+
+        let isStale = signatureChanged || (isInSystemSettings && isNotTrusted)
+
+        if isStale {
+            LoggingService.shared.warning(
+                "Detected stale permission state - signature changed: \(signatureChanged), in settings but not trusted: \(isInSystemSettings && isNotTrusted)",
+                category: "AccessibilityPermission"
+            )
+        }
+
+        return isStale
+    }
+
+    /// Checks if the app appears in System Settings > Privacy & Security > Accessibility
+    /// This uses tccutil to query the TCC database
+    /// - Returns: True if the app appears in accessibility settings
+    private func checkIfAppIsInAccessibilitySettings() -> Bool {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return false }
+
+        let task = Process()
+        task.launchPath = "/usr/bin/tccutil"
+        task.arguments = ["list", "Accessibility"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return false }
+
+            // Check if our bundle ID appears in the list
+            return output.contains(bundleID)
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Permission Reset

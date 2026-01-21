@@ -29,7 +29,7 @@ EXPORT_PATH="build/release"
 APP_BUNDLE="${EXPORT_PATH}/${APP_NAME}.app"
 ZIP_OUTPUT="build/${APP_NAME}-macOS.zip"
 DMG_OUTPUT="build/${APP_NAME}-macOS.dmg"
-CERTIFICATE_NAME="Notimanager Self-Signed Code Signing"
+# Will use first available certificate: Apple Development, Developer ID, or self-signed Notimanager cert
 
 # Xcode configuration
 XCODE_VERSION=""  # Empty = use system default
@@ -177,14 +177,36 @@ create_archive() {
 
     mkdir -p build
 
-    # Check for certificate
-    if security find-identity -v -p codesigning 2>/dev/null | grep -q "${CERTIFICATE_NAME}"; then
-        CODE_SIGN_IDENTITY="${CERTIFICATE_NAME}"
-        log_info "Using certificate: ${CERTIFICATE_NAME}"
-    else
-        CODE_SIGN_IDENTITY="-"
-        log_warning "No certificate found, using ad-hoc signing"
+    # Find the best available code signing certificate
+    # Priority: 1) Developer ID Application (for distribution), 2) Apple Development, 3) Any code signing cert
+    CODE_SIGN_IDENTITY=""
+
+    # Try Developer ID Application first (best for distribution)
+    if security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application"; then
+        CODE_SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+        log_info "Using Developer ID Application certificate"
+    # Then try Apple Development
+    elif security find-identity -v -p codesigning 2>/dev/null | grep -q "Apple Development"; then
+        CODE_SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+        log_info "Using Apple Development certificate"
+    # Then try any self-signed Notimanager certificate
+    elif security find-identity -v -p codesigning 2>/dev/null | grep -qi "notimanager"; then
+        CODE_SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep -i "notimanager" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+        log_info "Using Notimanager self-signed certificate"
     fi
+
+    if [ -z "$CODE_SIGN_IDENTITY" ]; then
+        log_error "No code signing certificate found!"
+        log_info "Available certificates:"
+        security find-identity -v -p codesigning 2>/dev/null || echo "  None"
+        echo ""
+        log_error "Please install a code signing certificate:"
+        echo "  - For development: Use Xcode with your Apple ID"
+        echo "  - For distribution: Get a Developer ID certificate from Apple Developer account"
+        exit 1
+    fi
+
+    log_success "Code signing identity: ${CODE_SIGN_IDENTITY}"
 
     log_step "Archiving ${APP_NAME}..."
 
@@ -490,6 +512,18 @@ ${BOLD}Release Workflow:${NC}
   5. Test the build
   6. Push: git push origin main && git push origin vX.Y.Z
   7. GitHub Actions will publish the release
+
+${BOLD}Code Signing:${NC}
+
+  This project uses a self-signed certificate for code signing.
+
+  ${YELLOW}First time setup:${NC}
+    ./scripts/setup-self-signed-cert.sh
+
+  ${YELLOW}For CI/CD:${NC}
+    1. Export your certificate: security export -p12 "${CERTIFICATE_NAME}" > cert.p12
+    2. Add to GitHub Secrets as CERTIFICATE_P12 (base64 encoded)
+    3. Add the password as CERTIFICATE_PASSWORD
 
 ${BOLD}Direct DMG Script Usage:${NC}
 

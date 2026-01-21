@@ -294,6 +294,11 @@ protocol AccessibilityPermissionProtocol {
     /// Gets the current permission status
     /// - Returns: Permission status enum
     func getPermissionStatus() -> PermissionStatus
+
+    /// Checks if permissions are in a stale state due to code signature change
+    /// This happens when the app is in System Settings but AXIsProcessTrusted returns false
+    /// - Returns: True if permissions appear stale (likely due to code signature mismatch)
+    func isPermissionStateStale() -> Bool
 }
 
 // MARK: - Supporting Types
