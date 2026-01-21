@@ -5,10 +5,29 @@ All notable changes to Notimanager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] - 2026-01-21
 
-### 🚧 Work in Progress
-- Placeholder for upcoming changes
+### ✨ New Features
+- **Automated CI/CD Releases**: Fully automated release workflow with self-signed certificate
+  - GitHub Actions now builds, signs, and publishes releases automatically
+  - No manual work required - just push a version tag
+  - Creates signed DMG with Sparkle support for auto-updates
+
+### 🛠️ Developer Experience
+- **Certificate Management Script**: New `scripts/setup-ci-cert.sh` for generating CI certificates
+  - Creates self-signed code signing certificate valid for 10 years
+  - Automatically adds secrets to GitHub via `gh` CLI
+  - Safety warnings to prevent accidental certificate regeneration
+- **Release Documentation**: Comprehensive release process documentation
+  - Step-by-step guide for creating releases
+  - Troubleshooting and rollback procedures
+  - Version numbering guidelines
+
+### 🔧 Improvements
+- **Gitignore Enhancements**: Added patterns for timestamped backup files
+- **Certificate Safety**: Improved warning system when certificate already exists
+  - Prevents accidental invalidation of existing releases
+  - Creates automatic backups before regenerating
 
 ## [2.1.4] - 2026-01-20
 
