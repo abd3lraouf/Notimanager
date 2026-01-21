@@ -77,20 +77,79 @@ echo ""
 
 # Check if certificate already exists
 log_step "Checking for existing certificate..."
+
+CERT_IN_KEYCHAIN=false
+CERT_FILE_EXISTS=false
+
+# Check if .p12 file exists
+if [ -f "$CERT_P12" ]; then
+    CERT_FILE_EXISTS=true
+fi
+
+# Check if certificate is in keychain
 if security find-certificate -c "$CERT_NAME" /Library/Keychains/System.keychain 2>/dev/null || \
    security find-certificate -c "$CERT_NAME" ~/Library/Keychains/login.keychain-db 2>/dev/null; then
-    log_warning "Certificate '$CERT_NAME' already exists in keychain"
+    CERT_IN_KEYCHAIN=true
+fi
+
+# Warn user if certificate already exists
+if [ "$CERT_FILE_EXISTS" = true ] || [ "$CERT_IN_KEYCHAIN" = true ]; then
+    log_warning "Certificate already exists!"
     echo ""
-    read -p "Do you want to remove and recreate it? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Removing existing certificate..."
-        security delete-certificate -c "$CERT_NAME" 2>/dev/null || true
-        log_success "Existing certificate removed"
-    else
-        log_info "Using existing certificate"
-        CERT_NAME_EXISTS=true
+
+    if [ "$CERT_FILE_EXISTS" = true ]; then
+        echo "  📁 File: $CERT_P12"
     fi
+    if [ "$CERT_IN_KEYCHAIN" = true ]; then
+        echo "  🔐 Keychain: $CERT_NAME"
+    fi
+
+    echo ""
+    echo -e "${RED}${BOLD}⚠️  WARNING: Regenerating the certificate will:${NC}"
+    echo ""
+    echo "  • Invalidate ALL existing releases signed with the old certificate"
+    echo "  • Require users to re-install the app (right-click → Open won't work on old versions)"
+    echo "  • Break auto-updates from older versions"
+    echo ""
+    echo "You should ONLY regenerate if:"
+    echo "  • This is a new setup"
+    echo "  • The old certificate was compromised"
+    echo "  • You're okay with breaking existing installations"
+    echo ""
+    echo -e "${YELLOW}If you want to keep using the existing certificate, press Ctrl+C to cancel.${NC}"
+    echo ""
+
+    read -p "Do you want to regenerate the certificate anyway? (type 'yes' to confirm): " -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        log_info "Cancelled. Keeping existing certificate."
+        echo ""
+        echo "To use the existing certificate:"
+        echo "  1. Make sure GitHub secrets are set:"
+        echo "     gh secret list"
+        echo "  2. If not, add them:"
+        echo -e "     ${GREEN}gh secret set CERTIFICATE_P12 < <(base64 -i $CERT_P12)${NC}"
+        echo -e "     ${GREEN}gh secret set CERTIFICATE_PASSWORD -b \"$KEYCHAIN_PASSWORD\"${NC}"
+        echo -e "     ${GREEN}gh secret set CERTIFICATE_NAME -b \"$CERT_COMMON_NAME\"${NC}"
+        exit 0
+    fi
+
+    # Remove existing certificate
+    if [ "$CERT_IN_KEYCHAIN" = true ]; then
+        log_info "Removing existing certificate from keychain..."
+        security delete-certificate -c "$CERT_NAME" 2>/dev/null || true
+        log_success "Existing certificate removed from keychain"
+    fi
+
+    # Backup old .p12 file
+    if [ "$CERT_FILE_EXISTS" = true ]; then
+        BACKUP_NAME="${CERT_P12}.backup.$(date +%Y%m%d_%H%M%S)"
+        log_info "Backing up old certificate to: $BACKUP_NAME"
+        cp "$CERT_P12" "$BACKUP_NAME"
+        log_success "Backup created"
+    fi
+
+    CERT_NAME_EXISTS=false
 else
     CERT_NAME_EXISTS=false
 fi
