@@ -99,15 +99,16 @@ jobs:
 
       - name: Build and archive
         run: |
-          echo "🔨 Building Notimanager with automatic code signing..."
+          echo "🔨 Building Notimanager with code signing..."
 
-          # Build with automatic signing - Xcode will handle certificates
-          # DEVELOPMENT_TEAM is set from GITHUB_ENV in the previous step
+          # For CI with free Apple ID, use Manual signing with the team ID
+          # This tells Xcode to use any available certificate for that team
           xcodebuild archive \
             -scheme Notimanager \
             -archivePath build/Notimanager.xcarchive \
             -destination 'platform=macOS' \
-            CODE_SIGN_STYLE=$CODE_SIGN_STYLE \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Development" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES || exit 1
