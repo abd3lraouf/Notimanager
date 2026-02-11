@@ -8,7 +8,6 @@
 
 import SwiftUI
 import LaunchAtLogin
-import Sparkle
 import ServiceManagement
 
 struct GeneralSettingsView: View {

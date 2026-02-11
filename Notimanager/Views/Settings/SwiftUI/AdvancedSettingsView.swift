@@ -51,6 +51,29 @@ struct AdvancedSettingsView: View {
                 Total size: \(viewModel.state.totalLogSize)
                 """)
         }
+        .alert("Reset All Settings?", isPresented: Binding(
+            get: { viewModel.state.showResetSettingsAlert },
+            set: { _ in }
+        )) {
+            Button("Cancel", role: .cancel) {
+                viewModel.process(.cancelResetAllSettings)
+            }
+            Button("Reset", role: .destructive) {
+                viewModel.process(.confirmResetAllSettings)
+            }
+        } message: {
+            Text("""
+                This will reset all settings to their default values.
+
+                What will be reset:
+                • All preferences and settings
+                • Notification positions
+                • Toggle states
+                • Custom configurations
+
+                The app will restart automatically.
+                """)
+        }
     }
 
     private var developerSection: some View {
@@ -268,6 +291,33 @@ struct AdvancedSettingsView: View {
 
                     Button("Open…") {
                         viewModel.process(.showPermissions)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
+                BlipSeparator()
+
+                // Reset All Settings
+                HStack(spacing: 12) {
+                    BlipIconView(systemName: "arrow.clockwise.circle", color: .red)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reset All Settings")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.primary)
+
+                        Text("Clear all preferences and restore defaults.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button("Reset…") {
+                        viewModel.process(.resetAllSettings)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)

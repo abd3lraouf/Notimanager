@@ -3,8 +3,7 @@
 //  Notimanager
 //
 //  Created on 2026-01-17.
-//  SwiftUI Permission View with MVI pattern.
-//  Redesigned with Blip design system.
+//  SwiftUI Permission View - Minimal, Blip design system.
 //
 
 import SwiftUI
@@ -18,34 +17,27 @@ struct PermissionView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // App icon and title
-                headerSection
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 12) {
+                    headerSection
 
-                // Permission explanation card
-                explanationCard
+                    permissionStatusCard
 
-                // Stale permission warning (only shown when needed)
-                if viewModel.isPermissionStale && !viewModel.isAccessibilityGranted {
-                    stalePermissionWarningCard
+                    // Stale permission warning (only shown when needed)
+                    if viewModel.isPermissionStale && !viewModel.isAccessibilityGranted {
+                        stalePermissionCard
+                    }
+
+                    // Clear permission card (always shown as utility)
+                    clearPermissionCard
+
+                    actionCard
                 }
-
-                // Features card
-                featuresCard
-
-                // Status card
-                statusCard
-
-                // Action buttons
-                actionButtons
+                .padding(12)
             }
-            .padding(20)
-            .frame(width: 420)
-            .frame(maxWidth: .infinity)
         }
-        .frame(minWidth: 480, minHeight: 600)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: 480, height: 520)
         .background(Color(red: 0xF5/255.0, green: 0xF5/255.0, blue: 0xF7/255.0))
         .onAppear {
             startPermissionPolling()
@@ -62,241 +54,190 @@ struct PermissionView: View {
         VStack(spacing: 12) {
             Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
                 .resizable()
-                .frame(width: 80, height: 80)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
+                .frame(width: 56, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
 
-            Text("Accessibility Permission")
-                .font(.system(size: 22, weight: .bold))
+            Text(headerTitle)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.primary)
 
-            Text("Notimanager needs accessibility permission to reposition your notifications on screen.")
-                .font(.system(size: 14))
+            Text(headerSubtitle)
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.top, 8)
+        .padding(.top, 16)
+        .padding(.bottom, 4)
     }
 
-    // MARK: - Explanation Card
+    private var headerTitle: String {
+        viewModel.isAccessibilityGranted ? "All Set" : "Accessibility"
+    }
 
-    private var explanationCard: some View {
-        BlipCard {
-            HStack(alignment: .top, spacing: 12) {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color(red: 0x00/255.0, green: 0x7A/255.0, blue: 0xFF/255.0).opacity(0.2))
-                    .frame(width: 28, height: 28)
-                    .overlay {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Color(red: 0x00/255.0, green: 0x7A/255.0, blue: 0xFF/255.0))
-                    }
-
-                Text("Accessibility is a macOS feature that lets apps move UI elements on your screen. Notimanager uses this to reposition your notifications.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+    private var headerSubtitle: String {
+        if viewModel.isAccessibilityGranted {
+            return "Notimanager is ready to use"
+        } else {
+            return "Required to move notifications"
         }
     }
 
-    // MARK: - Stale Permission Warning Card
+    // MARK: - Permission Status Card
 
-    private var stalePermissionWarningCard: some View {
-        BlipCard {
-            HStack(alignment: .top, spacing: 12) {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color(red: 0xFF/255.0, green: 0x95/255.0, blue: 0x00/255.0).opacity(0.2))
-                    .frame(width: 28, height: 28)
-                    .overlay {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Color(red: 0xFF/255.0, green: 0x95/255.0, blue: 0x00/255.0))
-                    }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Update Detected")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    Text("Notimanager was recently updated and needs accessibility permission to be re-granted. Even if you see Notimanager in System Settings, please remove it and add it again.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    HStack(spacing: 8) {
-                        Text("1")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Text("Click \"Open System Settings\" below")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack(spacing: 8) {
-                        Text("2")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Text("Remove Notimanager from the list (click −)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack(spacing: 8) {
-                        Text("3")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Text("Add Notimanager back (click +)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-        }
-    }
-
-    // MARK: - Features Card
-
-    private var featuresCard: some View {
-        BlipCard {
-            VStack(spacing: 0) {
-                // Header
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color(red: 0x32/255.0, green: 0xD7/255.0, blue: 0x4B/255.0).opacity(0.2))
-                        .frame(width: 28, height: 28)
-                        .overlay {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(Color(red: 0x32/255.0, green: 0xD7/255.0, blue: 0x4B/255.0))
-                        }
-
-                    Text("What you'll be able to do")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.primary)
-
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-
-                BlipSeparator()
-
-                // Feature rows
-                PermissionFeatureRow(
-                    icon: "arrow.up.left.and.arrow.down.right",
-                    title: "Move notifications to any corner"
-                )
-
-                BlipSeparator()
-
-                PermissionFeatureRow(
-                    icon: "rectangle.3.group",
-                    title: "Keep notifications organized"
-                )
-
-                BlipSeparator()
-
-                PermissionFeatureRow(
-                    icon: "slider.horizontal.3",
-                    title: "Customize positioning behavior"
-                )
-            }
-        }
-    }
-
-    // MARK: - Status Card
-
-    private var statusCard: some View {
+    private var permissionStatusCard: some View {
         BlipCard {
             HStack(spacing: 12) {
-                // Status icon
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(statusIconColor.opacity(0.2))
-                    .frame(width: 32, height: 32)
-                    .overlay {
-                        Image(systemName: statusIconName)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(statusIconColor)
-                    }
+                BlipIconView(systemName: statusIcon, color: statusColor)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(statusTitle)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13))
                         .foregroundStyle(.primary)
 
                     Text(statusMessage)
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
         }
     }
 
-    private var statusIconName: String {
-        viewModel.isAccessibilityGranted ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+    private var statusIcon: String {
+        if viewModel.isAccessibilityGranted {
+            return "checkmark.circle.fill"
+        } else if viewModel.isPermissionStale {
+            return "arrow.triangle.2.circlepath"
+        } else {
+            return "exclamationmark.triangle.fill"
+        }
     }
 
-    private var statusIconColor: Color {
-        viewModel.isAccessibilityGranted
-            ? Color(red: 0x32/255.0, green: 0xD7/255.0, blue: 0x4B/255.0)
-            : Color(red: 0xFF/255.0, green: 0x95/255.0, blue: 0x00/255.0)
+    private var statusColor: BlipIconColor {
+        if viewModel.isAccessibilityGranted {
+            return .green
+        } else if viewModel.isPermissionStale {
+            return .orange
+        } else {
+            return .orange
+        }
     }
 
     private var statusTitle: String {
-        viewModel.isAccessibilityGranted ? "Permission Granted" : "Permission Required"
+        if viewModel.isAccessibilityGranted {
+            return "Permission Granted"
+        } else if viewModel.isPermissionStale {
+            return "Update Detected"
+        } else {
+            return "Permission Required"
+        }
     }
 
     private var statusMessage: String {
         if viewModel.isAccessibilityGranted {
-            return "Accessibility permission has been granted. Restart Notimanager to begin using it."
+            return "Ready to restart"
         } else if viewModel.isPermissionStale {
-            return "Notimanager appears in System Settings but macOS doesn't recognize the updated version. Please follow the steps above."
+            return "Please re-grant permission"
         } else {
-            return "Click below to open System Settings and grant accessibility permission."
+            return "Required to reposition notifications"
         }
     }
 
-    // MARK: - Action Buttons
+    // MARK: - Stale Permission Card
 
-    private var actionButtons: some View {
-        VStack(spacing: 12) {
-            // Primary action button
-            Button(action: {
-                if viewModel.isAccessibilityGranted {
-                    viewModel.restartApp()
-                } else {
-                    viewModel.openAccessibilitySettings()
+    private var stalePermissionCard: some View {
+        BlipCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(BlipIconColor.orange.color)
+
+                    Text("How to fix")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
                 }
-            }) {
-                Text(viewModel.isAccessibilityGranted ? "Restart Notimanager" : "Open System Settings…")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color(red: 0x00/255.0, green: 0x7A/255.0, blue: 0xFF/255.0))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                staleStep(number: "1", text: "Open System Settings")
+                staleStep(number: "2", text: "Remove Notimanager (click −)")
+                staleStep(number: "3", text: "Add Notimanager back (click +)")
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+    }
 
-            // Quit button (only when permission not granted)
-            if !viewModel.isAccessibilityGranted {
-                Button("Quit Notimanager") {
-                    NSApp.terminate(nil)
-                }
-                .font(.system(size: 13))
+    private func staleStep(number: String, text: String) -> some View {
+        HStack(spacing: 6) {
+            Text(number)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 14, height: 14)
+                .background(Capsule().fill(BlipIconColor.orange.color))
+
+            Text(text)
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Clear Permission Card
+
+    private var clearPermissionCard: some View {
+        BlipCard {
+            BlipActionRow(
+                systemName: "trash",
+                color: .gray,
+                title: "Clear Permission",
+                subtitle: "Remove from System Settings",
+                buttonTitle: "Clear",
+                action: {
+                    viewModel.clearAccessibilityPermission()
+                }
+            )
+        }
+    }
+
+    // MARK: - Action Card
+
+    private var actionCard: some View {
+        BlipCard {
+            VStack(spacing: 0) {
+                // Primary action
+                BlipActionRow(
+                    systemName: viewModel.isAccessibilityGranted ? "arrow.clockwise" : "gearshape.fill",
+                    color: .blue,
+                    title: viewModel.isAccessibilityGranted ? "Restart Notimanager" : "Open System Settings",
+                    subtitle: viewModel.isAccessibilityGranted ? "Apply changes" : "Grant accessibility permission",
+                    buttonTitle: viewModel.isAccessibilityGranted ? "Restart" : "Open",
+                    action: {
+                        if viewModel.isAccessibilityGranted {
+                            viewModel.restartApp()
+                        } else {
+                            viewModel.openAccessibilitySettings()
+                        }
+                    }
+                )
+
+                // Quit button (only when permission not granted)
+                if !viewModel.isAccessibilityGranted {
+                    BlipSeparator()
+
+                    BlipActionRow(
+                        systemName: "power",
+                        color: .red,
+                        title: "Quit Notimanager",
+                        subtitle: nil,
+                        buttonTitle: "Quit",
+                        action: {
+                            NSApp.terminate(nil)
+                        }
+                    )
+                }
             }
         }
     }
@@ -304,9 +245,8 @@ struct PermissionView: View {
     // MARK: - Permission Polling
 
     private func startPermissionPolling() {
-        // Invalidate existing timer if any
         pollingTimer?.invalidate()
-        
+
         pollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak viewModel] _ in
             guard let viewModel = viewModel else { return }
 
@@ -321,37 +261,9 @@ struct PermissionView: View {
     }
 }
 
-// MARK: - Permission Feature Row
-
-struct PermissionFeatureRow: View {
-    let icon: String
-    let title: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundStyle(Color(red: 0x00/255.0, green: 0x7A/255.0, blue: 0xFF/255.0))
-                .frame(width: 20)
-
-            Text(title)
-                .font(.system(size: 14))
-                .foregroundStyle(.primary)
-
-            Spacer()
-
-            Image(systemName: "checkmark")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color(red: 0x32/255.0, green: 0xD7/255.0, blue: 0x4B/255.0))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
     PermissionView()
-        .frame(width: 480, height: 620)
+        .frame(width: 480, height: 520)
 }

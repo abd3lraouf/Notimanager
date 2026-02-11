@@ -8,9 +8,9 @@ This document explains how to publish and maintain the Notimanager Homebrew cask
 
 ## Current Status
 
-- **Cask File**: `homebrew-notimanager.rb`
+- **Cask File**: `notimanager.rb`
 - **Official Repository**: Not yet submitted to Homebrew
-- **Installation**: Users can install locally with `brew install --cask ./homebrew-notimanager.rb`
+- **Installation**: Users can install locally with `brew install --cask ./notimanager.rb`
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ To install Notimanager via Homebrew:
 
 ```bash
 # From the project root
-brew install --cask ./homebrew-notimanager.rb
+brew install --cask ./notimanager.rb
 ```
 
 ### For Maintainers
@@ -37,7 +37,7 @@ After releasing a new version:
 This will:
 - Download the DMG from GitHub Releases
 - Calculate the SHA256 hash
-- Update `homebrew-notimanager.rb` with the new hash and version
+- Update `notimanager.rb` with the new hash and version
 
 #### 2. Test Locally
 
@@ -45,7 +45,7 @@ Before submitting:
 
 ```bash
 # Test installation
-brew install --cask ./homebrew-notimanager.rb
+brew install --cask ./notimanager.rb
 
 # Test uninstall
 brew uninstall --cask notimanager
@@ -73,7 +73,8 @@ cask "notimanager" do
   version "2.2.0"
   sha256 "calculated_sha256"
 
-  url "https://github.com/abd3lraouf/Notimanager/releases/download/v#{version}/Notimanager-#{version}.dmg"
+  # Note: Asset name uses lowercase "notimanager" as required by AppUpdater
+  url "https://github.com/abd3lraouf/Notimanager/releases/download/v#{version}/notimanager-#{version}.dmg"
   name "Notimanager"
   desc "macOS notification positioning utility"
   homepage "https://github.com/abd3lraouf/Notimanager"
@@ -82,9 +83,10 @@ cask "notimanager" do
 
   uninstall quit: "dev.abd3lraouf.notimanager"
 
+  # Uses GitHub releases for updates (AppUpdater)
   livecheck do
-    url "https://github.com/abd3lraouf/Notimanager/releases/latest/download/appcast.xml"
-    strategy :sparkle
+    url :homepage
+    strategy :github_latest
   end
 end
 ```
@@ -95,10 +97,10 @@ end
 |-------|-------|---------|
 | `version` | Current app version | Used for URL generation and livecheck |
 | `sha256` | DMG checksum | Security verification |
-| `url` | Download source | GitHub Releases DMG |
+| `url` | Download source | GitHub Releases DMG (lowercase "notimanager") |
 | `app` | App name | Path to .app inside DMG |
 | `uninstall quit` | Bundle ID | Quit app before uninstall |
-| `livecheck` | Update strategy | Uses Sparkle appcast |
+| `livecheck` | Update strategy | Uses GitHub tags |
 
 ## Submitting to Homebrew
 
@@ -114,7 +116,7 @@ end
 2. **Add the cask**:
    ```bash
    # Create the cask file
-   cp /path/to/notimanager/homebrew-notimanager.rb Casks/notimanager.rb
+   cp /path/to/notimanager/notimanager.rb Casks/notimanager.rb
 
    # Update SHA256 (if not already done)
    ./scripts/update-homebrew-sha.sh
@@ -181,10 +183,16 @@ Starting September 2026, Homebrew will disable casks that fail Gatekeeper checks
 
 ### Livecheck
 
-The cask uses Sparkle's `appcast.xml` for version checking, which means:
-- Updates are detected automatically
+The cask uses GitHub releases for version checking via `:github_latest` strategy, which means:
+- Updates are detected automatically from GitHub tags
 - No manual version bumping needed
 - Homebrew maintainers can use `brew livecheck` to check for updates
+
+### Asset Naming Convention
+
+**Important:** Release assets must be named with lowercase "notimanager" as required by AppUpdater:
+- `notimanager-2.2.0.dmg` (correct)
+- `Notimanager-2.2.0.dmg` (incorrect - won't work with AppUpdater)
 
 ### Naming Convention
 
@@ -198,7 +206,7 @@ The cask uses Sparkle's `appcast.xml` for version checking, which means:
 
 ```bash
 # Recalculate SHA256 manually
-curl -L -o /tmp/notimanager.dmg "https://github.com/abd3lraouf/Notimanager/releases/download/v2.2.0/Notimanager-2.2.0.dmg"
+curl -L -o /tmp/notimanager.dmg "https://github.com/abd3lraouf/Notimanager/releases/download/v2.2.0/notimanager-2.2.0.dmg"
 shasum -a 256 /tmp/notimanager.dmg
 ```
 
@@ -213,15 +221,15 @@ brew livecheck --debug --notimanager
 
 ```bash
 # Install with debug output
-brew install --cask --debug ./homebrew-notimanager.rb
+brew install --cask --debug ./notimanager.rb
 
 # Check audit issues
-brew audit --cask --online ./homebrew-notimanager.rb
+brew audit --cask --online ./notimanager.rb
 ```
 
 ## Further Reading
 
 - [Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)
 - [Adding Software to Homebrew](https://docs.brew.sh/Adding-Software-to-Homebrew)
-- [Homebrew Livecheck](https://docs.brew.sh/rubydoc/Homebrew/Livecheck/Strategy/Sparkle.html)
+- [Homebrew Livecheck](https://docs.brew.sh/rubydoc/Homebrew/Livecheck/Strategy/GithubLatest.html)
 - [Homebrew for Maintainers](https://docs.brew.sh/For-Maintainers)

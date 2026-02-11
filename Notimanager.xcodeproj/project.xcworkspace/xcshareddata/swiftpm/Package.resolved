@@ -1,6 +1,24 @@
 {
-  "originHash" : "695aa54fc8ab687e182a20e4b1f6721fb133f12851a23faf6df3631bc0587a6b",
+  "originHash" : "15936a67ee4b4185b1c0b43b418c07854356ad0ea792f11060f128cf2a8d2990",
   "pins" : [
+    {
+      "identity" : "appupdater",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mxcl/AppUpdater.git",
+      "state" : {
+        "revision" : "1b60169700489f16cfbe2feb6b1e32ca5c9464b8",
+        "version" : "1.1.1"
+      }
+    },
+    {
+      "identity" : "foundation",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/PromiseKit/Foundation",
+      "state" : {
+        "revision" : "985f17fa69ee0e5b7eb3ff9be87ffc4e05fc0927",
+        "version" : "3.4.0"
+      }
+    },
     {
       "identity" : "launchatlogin-modern",
       "kind" : "remoteSourceControl",
@@ -11,12 +29,30 @@
       }
     },
     {
-      "identity" : "sparkle",
+      "identity" : "path.swift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sparkle-project/Sparkle",
+      "location" : "https://github.com/mxcl/Path.swift",
       "state" : {
-        "revision" : "5581748cef2bae787496fe6d61139aebe0a451f6",
-        "version" : "2.8.1"
+        "revision" : "8e355c28e9393c42e58b18c54cace2c42c98a616",
+        "version" : "1.4.1"
+      }
+    },
+    {
+      "identity" : "promisekit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mxcl/PromiseKit.git",
+      "state" : {
+        "revision" : "8a98e31a47854d3180882c8068cc4d9381bf382d",
+        "version" : "6.22.1"
+      }
+    },
+    {
+      "identity" : "version",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mxcl/Version",
+      "state" : {
+        "revision" : "200046c93f6d5d78a6d72bfd9c0b27a95e9c0a2b",
+        "version" : "1.2.0"
       }
     }
   ],

@@ -66,6 +66,18 @@ class PermissionViewModel: ObservableObject {
         AppRestart.restart(delay: 0.5)
     }
 
+    /// Clears accessibility permission from macOS System Settings using tccutil
+    func clearAccessibilityPermission() {
+        debugLog("Clearing accessibility permission using tccutil")
+
+        do {
+            try AccessibilityPermissionService.shared.resetPermissions()
+            debugLog("Successfully cleared accessibility permission")
+        } catch {
+            debugLog("Failed to clear accessibility permission: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Helpers
 
     private func debugLog(_ message: String) {

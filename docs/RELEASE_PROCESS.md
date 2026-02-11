@@ -7,8 +7,9 @@ This document describes the automated release process for Notimanager.
 Releases are **fully automated** via GitHub Actions. When you push a version tag, CI will:
 1. Build the app with the self-signed certificate
 2. Create a DMG disk image
-3. Sign with Sparkle (for auto-updates)
-4. Publish to GitHub Releases
+3. Publish to GitHub Releases
+
+**Important:** Asset naming uses lowercase `notimanager-{version}.dmg` (e.g., `notimanager-2.2.0.dmg`) as required by AppUpdater.
 
 ## Prerequisites
 
@@ -22,9 +23,6 @@ Ensure these are set up:
    - `CERTIFICATE_P12` - Base64 encoded certificate
    - `CERTIFICATE_PASSWORD` - Keychain password
    - `CERTIFICATE_NAME` - Certificate name
-
-2. **Optional Sparkle Key** (for auto-update signing):
-   - `SPARKLE_PRIVATE_KEY` - EdDSA private key
 
 ## Creating a Release
 
@@ -81,8 +79,7 @@ https://github.com/abd3lraouf/Notimanager/releases
 ```
 
 The release should include:
-- `Notimanager-{VERSION}.dmg` - Signed disk image
-- `appcast.xml` - Sparkle update feed
+- `notimanager-{VERSION}.dmg` - Signed disk image (lowercase "notimanager")
 - Release notes from CHANGELOG
 
 ## Version Numbering
@@ -191,18 +188,23 @@ Before pushing a release tag:
 - [ ] CHANGELOG.md updated with version notes
 - [ ] All changes committed
 - [ ] GitHub secrets configured (CERTIFICATE_P12, CERTIFICATE_PASSWORD, CERTIFICATE_NAME)
-- [ ] Sparkle key set (if using auto-updates)
 - [ ] Version number follows semantic versioning
 - [ ] Local build tested (optional but recommended)
 
 ## Auto-Updates
 
-Notimanager uses [Sparkle](https://sparkle-project.org/) for automatic updates:
+Notimanager uses [AppUpdater](https://github.com/mxcl/AppUpdater) for automatic updates:
 
-1. Each release includes `appcast.xml`
-2. App checks for updates on launch
-3. New versions are downloaded automatically
-4. User is prompted to install
+1. AppUpdater queries GitHub Releases API directly
+2. Checks for new versions daily (automatic background check)
+3. Validates code signing identity before installing
+4. Downloads and installs updates automatically
+
+**Asset naming requirement:** Release assets must be named `notimanager-{version}.{ext}` (lowercase, with semantic version). For example:
+- `notimanager-2.2.0.zip`
+- `notimanager-2.2.0.tar.gz`
+
+The release workflow automatically creates DMGs with the correct naming: `notimanager-{VERSION}.dmg`.
 
 **Note:** With self-signed certificate, the first launch of the updated app will also require right-click → "Open".
 
@@ -217,8 +219,6 @@ The release workflow (`.github/workflows/release.yml`) runs these steps:
 | Setup Keychain | Import certificate | ~15s |
 | Build App | Compile with Xcode | ~3-5 min |
 | Create DMG | Build disk image | ~1-2 min |
-| Sign Sparkle | Sign for updates | ~10s |
-| Update Appcast | Generate update feed | ~10s |
 | Generate Changelog | Extract notes | ~10s |
 | Publish Release | Upload to GitHub | ~30s |
 
@@ -227,6 +227,6 @@ The release workflow (`.github/workflows/release.yml`) runs these steps:
 ## Further Reading
 
 - [Semantic Versioning](https://semver.org/)
-- [Sparkle Documentation](https://sparkle-project.org/documentation/)
+- [AppUpdater Documentation](https://github.com/mxcl/AppUpdater)
 - [GitHub Actions](https://docs.github.com/en/actions)
 - [CI Certificate Setup](./CI_CERTIFICATE_SETUP.md)

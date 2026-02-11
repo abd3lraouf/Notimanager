@@ -3,15 +3,14 @@
 //  Notimanager
 //
 //  Created on 2025-01-17.
-//  Manages Sparkle auto-updates.
-//
-//  Testing dynamic appcast generation from CHANGELOG.md
+//  Manages auto-updates using AppUpdater.
 //
 
 import AppKit
-import Sparkle
+import AppUpdater
+import PromiseKit
 
-/// Manages application auto-updates using Sparkle
+/// Manages application auto-updates using AppUpdater
 final class UpdateManager: NSObject {
 
     // MARK: - Singleton
@@ -20,41 +19,42 @@ final class UpdateManager: NSObject {
 
     // MARK: - Properties
 
-    /// The Sparkle updater controller
-    private(set) var updaterController: SPUStandardUpdaterController?
-
-    /// The Sparkle updater (for direct access to updater APIs)
-    var updater: SPUUpdater? {
-        updaterController?.updater
-    }
+    /// The AppUpdater instance
+    private(set) var updater: AppUpdater!
 
     /// Whether automatic update checks are enabled
+    /// Note: AppUpdater handles automatic checks internally via NSBackgroundActivityScheduler
     var automaticallyChecksForUpdates: Bool {
         get {
-            updater?.automaticallyChecksForUpdates ?? true
+            // AppUpdater always checks automatically, so we return true
+            // Users can still trigger manual checks
+            return true
         }
         set {
-            updater?.automaticallyChecksForUpdates = newValue
+            // AppUpdater doesn't support disabling automatic checks
+            // The property exists for API compatibility with the old Sparkle implementation
         }
     }
 
     /// The update check interval in seconds
+    /// Note: AppUpdater uses a fixed 24-hour interval
     var updateCheckInterval: TimeInterval {
         get {
-            updater?.updateCheckInterval ?? 86400 // 24 hours default
+            return 24 * 60 * 60 // AppUpdater uses 24 hours
         }
         set {
-            updater?.updateCheckInterval = newValue
+            // AppUpdater doesn't support custom intervals
         }
     }
 
     /// Whether automatic downloading of updates is enabled
+    /// Note: AppUpdater automatically downloads and installs updates
     var automaticallyDownloadsUpdates: Bool {
         get {
-            updater?.automaticallyDownloadsUpdates ?? false
+            return true
         }
         set {
-            updater?.automaticallyDownloadsUpdates = newValue
+            // AppUpdater doesn't support toggling this
         }
     }
 
@@ -89,26 +89,41 @@ final class UpdateManager: NSObject {
 
     // MARK: - Setup
 
-    /// Sets up the Sparkle updater
+    /// Sets up the AppUpdater
     private func setupUpdater() {
-        // Initialize the updater controller with Sparkle
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: self,
-            userDriverDelegate: nil
-        )
+        // Initialize AppUpdater with GitHub owner and repo
+        // AppUpdater will automatically check for updates daily in the background
+        updater = AppUpdater(owner: "abd3lraouf", repo: "Notimanager")
+        updater.allowPrereleases = false
     }
 
     // MARK: - Public Methods
 
     /// Initiates a manual check for updates
     func checkForUpdates() {
-        updater?.checkForUpdates()
+        updateLastCheckDate()
+
+        updater.check().catch(policy: .allErrors) { error in
+            if error.isCancelled {
+                // Already up-to-date
+                print("AppUpdater: Already up to date")
+            } else {
+                // Show error alert
+                print("AppUpdater error: \(error.localizedDescription)")
+            }
+        }
     }
 
-    /// Checks for updates in the background (no UI shown unless update found)
+    /// Checks for updates in the background
+    /// Note: AppUpdater handles this automatically via NSBackgroundActivityScheduler
     func checkForUpdatesInBackground() {
-        updater?.checkForUpdatesInBackground()
+        updateLastCheckDate()
+        // AppUpdater handles background checks automatically
+        // This method exists for API compatibility
+    }
+
+    private func updateLastCheckDate() {
+        lastUpdateCheckDate = Date()
     }
 
     /// Formats the last check date for display
@@ -138,77 +153,3 @@ final class UpdateManager: NSObject {
         }
     }
 }
-
-// MARK: - SPUUpdaterDelegate
-
-extension UpdateManager: SPUUpdaterDelegate {
-    func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
-        // Update last check date when check completes
-        lastUpdateCheckDate = Date()
-    }
-
-    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        // Still update last check date on error
-        lastUpdateCheckDate = Date()
-        // Log the error for debugging
-        print("Update aborted with error: \(error.localizedDescription)")
-    }
-
-    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
-        print("Found valid update: \(item.versionString)")
-    }
-
-    func updater(_ updater: SPUUpdater, didNotFindUpdate item: SUAppcastItem) {
-        print("No new update found. Current version is up to date.")
-    }
-
-    func updater(_ updater: SPUUpdater, willDownloadUpdate item: SUAppcastItem) {
-        print("Preparing to download update: \(item.versionString)")
-    }
-
-    func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
-        print("Successfully downloaded update: \(item.versionString)")
-    }
-
-    func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: Error) {
-        print("Failed to download update \(item.versionString): \(error.localizedDescription)")
-    }
-
-    func updater(_ updater: SPUUpdater, willExtractUpdate item: SUAppcastItem) {
-        print("Extracting update: \(item.versionString)")
-    }
-
-    func updater(_ updater: SPUUpdater, didExtractUpdate item: SUAppcastItem) {
-        print("Successfully extracted update: \(item.versionString)")
-    }
-
-    func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
-        print("Installing update: \(item.versionString)")
-    }
-
-    func updater(_ updater: SPUUpdater, failedToApplyUpdate item: SUAppcastItem, error: Error) {
-        print("Failed to apply update \(item.versionString): \(error.localizedDescription)")
-    }
-}
-
-// Dummy change for testing 2.1.6 release
-
-// Dummy change for testing 2.1.7 release
-
-// Dummy change for testing 2.1.8 release
-
-// Dummy change for testing 2.1.9 release
-
-// Dummy change for testing 2.1.10 release
-
-// Dummy change for testing 2.1.11 release
-
-// Dummy change for testing 2.1.12 release
-
-// Dummy change for testing 2.1.13 release
-
-// Dummy change for testing 2.1.14 release
-
-// Dummy change for testing 2.1.13 release
-
-// Dummy change for testing 2.1.14 release

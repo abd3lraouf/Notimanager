@@ -47,14 +47,6 @@ gh secret set CERTIFICATE_PASSWORD -b "ci-keychain-password"
 gh secret set CERTIFICATE_NAME -b "Notimanager CI"
 ```
 
-### 3. Sparkle Private Key (Optional)
-
-For Sparkle auto-update signing:
-
-```bash
-gh secret set SPARKLE_PRIVATE_KEY < private_key.pem
-```
-
 ## How It Works
 
 ### CI Workflow
@@ -63,16 +55,15 @@ When you push a version tag (`v2.1.15`), GitHub Actions will:
 
 1. **Set up keychain** - Create a temporary keychain
 2. **Import certificate** - Import the self-signed certificate from secrets
-3. **Build the app** - Archive and export with xcodebuild
+3. **Build the app** - Compile with xcodebuild
 4. **Create DMG** - Build the distribution disk image
-5. **Sign with Sparkle** - Sign for auto-update (if key provided)
-6. **Publish release** - Upload DMG and appcast to GitHub Releases
+5. **Publish release** - Upload DMG to GitHub Releases
 
 ### Certificate Details
 
 | Property | Value |
 |----------|-------|
-| Type | Self-signed Code Signing |
+| Type | Self-Signed Code Signing |
 | Common Name | `Notimanager CI` |
 | Organization | `Notimanager` |
 | Validity | 10 years |
@@ -259,4 +250,4 @@ xcodebuild -project Notimanager.xcodeproj \
 
 - [Apple Code Signing Guide](https://developer.apple.com/support/code-signing/)
 - [GitHub Actions Secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets)
-- [Sparkle Documentation](https://sparkle-project.org/)
+- [AppUpdater Documentation](https://github.com/mxcl/AppUpdater)

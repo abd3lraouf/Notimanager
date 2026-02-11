@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		78LAUNCH01 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 78LAUNCH02 /* LaunchAtLogin */; };
-		78SPARKLE01 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 78SPARKLE02 /* Sparkle */; };
+		78APPUPD01 /* AppUpdater in Frameworks */ = {isa = PBXBuildFile; productRef = 78APPUPD02 /* AppUpdater */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,7 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				78LAUNCH01 /* LaunchAtLogin in Frameworks */,
-				78SPARKLE01 /* Sparkle in Frameworks */,
+				78APPUPD01 /* AppUpdater in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -119,7 +119,7 @@
 			name = Notimanager;
 			packageProductDependencies = (
 				78LAUNCH02 /* LaunchAtLogin */,
-				78SPARKLE02 /* Sparkle */,
+				78APPUPD02 /* AppUpdater */,
 			);
 			productName = Notimanager;
 			productReference = 7891B99C2EC9D3BF00454386 /* Notimanager.app */;
@@ -173,7 +173,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
-				78SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				78APPUPD03 /* XCRemoteSwiftPackageReference "AppUpdater" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7891B99D2EC9D3BF00454386 /* Products */;
@@ -497,12 +497,12 @@
 				minimumVersion = 1.0.0;
 			};
 		};
-		78SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+		78APPUPD03 /* XCRemoteSwiftPackageReference "AppUpdater" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			repositoryURL = "https://github.com/mxcl/AppUpdater.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
+				minimumVersion = 1.1.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -513,10 +513,10 @@
 			package = 78LAUNCH03 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
 			productName = LaunchAtLogin;
 		};
-		78SPARKLE02 /* Sparkle */ = {
+		78APPUPD02 /* AppUpdater */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 78SPARKLE03 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
+			package = 78APPUPD03 /* XCRemoteSwiftPackageReference "AppUpdater" */;
+			productName = AppUpdater;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

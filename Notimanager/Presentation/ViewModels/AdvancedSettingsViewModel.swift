@@ -26,6 +26,7 @@ struct AdvancedSettingsState: Equatable {
 
     // Alert state
     var showClearLogsAlert: Bool = false
+    var showResetSettingsAlert: Bool = false
 }
 
 // MARK: - Intent
@@ -42,6 +43,9 @@ enum AdvancedSettingsIntent {
     case openLogsDirectory
     case openConsoleApp
     case showLogViewer
+    case resetAllSettings
+    case confirmResetAllSettings
+    case cancelResetAllSettings
 }
 
 // MARK: - ViewModel
@@ -107,6 +111,15 @@ class AdvancedSettingsViewModel: BaseViewModel<AdvancedSettingsState, AdvancedSe
 
         case .showLogViewer:
             systemUseCases.showLogViewer()
+
+        case .resetAllSettings:
+            updateState { $0.showResetSettingsAlert = true }
+
+        case .confirmResetAllSettings:
+            confirmResetAllSettings()
+
+        case .cancelResetAllSettings:
+            updateState { $0.showResetSettingsAlert = false }
         }
     }
 
@@ -188,5 +201,17 @@ class AdvancedSettingsViewModel: BaseViewModel<AdvancedSettingsState, AdvancedSe
         }
 
         return "Never"
+    }
+
+    // MARK: - Reset Settings
+
+    private func confirmResetAllSettings() {
+        updateState { $0.showResetSettingsAlert = false }
+
+        // Clear all UserDefaults
+        PreferenceStore.shared.clearAll()
+
+        // Restart the app to apply default settings
+        AppRestart.restart(delay: 0.5)
     }
 }

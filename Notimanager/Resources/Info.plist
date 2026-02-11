@@ -28,9 +28,5 @@
 	<string>NSApplication</string>
 	<key>NSUserNotificationAlertStyle</key>
 	<string>alert</string>
-	<key>SUFeedURL</key>
-	<string>https://github.com/abd3lraouf/Notimanager/releases/latest/download/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>fV/kG1YpTdscZDD3brSMaHdar/Seec5oYwiBnwvRENY=</string>
 </dict>
 </plist>

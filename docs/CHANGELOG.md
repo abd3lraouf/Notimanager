@@ -5,6 +5,24 @@ All notable changes to Notimanager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🔄 Changed
+- **Auto-Update Framework**: Replaced Sparkle with AppUpdater
+  - Uses GitHub Releases API directly instead of appcast.xml
+  - Simpler architecture with fewer dependencies
+  - Automatic daily update checks in background
+  - Validates code signing identity before installing updates
+  - Release assets now named `notimanager-{version}.dmg` (lowercase)
+
+### 🛠️ Developer Experience
+- **Removed Sparkle Dependencies**: Removed all Sparkle-related scripts and configurations
+  - Deleted `scripts/setup-sparkle.sh`
+  - Deleted `scripts/generate_appcast_from_changelog.py`
+  - Deleted `scripts/markdown_to_html.py`
+  - Removed `SUFeedURL` and `SUPublicEDKey` from Info.plist
+  - Updated release workflow to skip appcast generation
+
 ## [2.2.0] - 2026-01-21
 
 ### ✨ New Features
