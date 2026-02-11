@@ -5,7 +5,7 @@ All notable changes to Notimanager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.3.0] - 2026-02-11
 
 ### 🔄 Changed
 - **Auto-Update Framework**: Replaced Sparkle with AppUpdater
@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic daily update checks in background
   - Validates code signing identity before installing updates
   - Release assets now named `notimanager-{version}.dmg` (lowercase)
+
+### ✨ Added
+- **Homebrew Cask Support**: Users can now install Notimanager via Homebrew
+  - Added `notimanager.rb` cask file
+  - Uses GitHub releases for version checking
+  - Simplified installation with `brew install --cask notimanager`
 
 ### 🛠️ Developer Experience
 - **Removed Sparkle Dependencies**: Removed all Sparkle-related scripts and configurations
