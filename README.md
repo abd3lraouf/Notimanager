@@ -19,7 +19,7 @@ Notimanager gives you the power to decide where notifications appear on your scr
 - **Native Design**: Built with SwiftUI to look and feel right at home on macOS.
 - **Lightweight**: Uses negligible system resources.
 - **Keyboard Friendly**: Fast access via menu bar shortcuts.
-- **Automatic Updates**: Stay up-to-date with built-in Sparkle update support.
+- **Automatic Updates**: Stay up-to-date with built-in AppUpdater support.
 
 ## 📸 Screenshots
 
@@ -31,17 +31,12 @@ Quick access to notification positioning directly from your menu bar.
 ### Settings Window
 Beautiful, intuitive settings built with SwiftUI.
 
-![Settings Window](docs/art/settings-window.png)
+![Settings Window](docs/art/settings-general.png)
 
 ### Position Selector
 Easily choose which corner displays your notifications.
 
-![Position Selector](docs/art/position-selector.png)
-
-### Update Dialog
-Automatic updates keep you running the latest version.
-
-![Update Dialog](docs/art/update-dialog.png)
+![Position Selector](docs/art/settings-position.png)
 
 ## 📥 Installation
 
