@@ -125,6 +125,29 @@ jobs:
           codesign -dv "build/release/Notimanager.app" 2>&1 || true
           echo "✅ App signed successfully"
 
+      - name: Create ZIP archive (for AppUpdater)
+        run: |
+          echo "📦 Creating ZIP archive..."
+
+          VERSION="${{ steps.version.outputs.version }}"
+          APP_PATH="build/release/Notimanager.app"
+
+          # Create ZIP archive with correct naming for AppUpdater
+          # AppUpdater expects: {reponame}-{tag}.zip (lowercase)
+          # The tag_name from GitHub releases includes the 'v' prefix
+          cd build/release
+          zip -r -q "../notimanager-v${VERSION}.zip" "Notimanager.app"
+          cd ../..
+
+          ZIP_PATH="build/notimanager-v${VERSION}.zip"
+          ZIP_SIZE=$(stat -f%z "$ZIP_PATH" 2>/dev/null || stat -c%s "$ZIP_PATH" 2>/dev/null)
+
+          echo "✅ ZIP created: $ZIP_PATH"
+          echo "📊 Size: $ZIP_SIZE bytes"
+
+          echo "ZIP_PATH=$ZIP_PATH" >> $GITHUB_ENV
+          echo "ZIP_SIZE=$ZIP_SIZE" >> $GITHUB_ENV
+
       - name: Create DMG
         run: |
           echo "📦 Creating DMG..."
@@ -150,10 +173,9 @@ jobs:
             exit 1
           fi
 
-          # Rename to AppUpdater naming convention: notimanager-{version}.dmg
-          # Note: lowercase "notimanager" as required by AppUpdater
-          mv "$DMG_PATH" "build/notimanager-${VERSION}.dmg"
-          DMG_PATH="build/notimanager-${VERSION}.dmg"
+          # Rename to consistent naming: Notimanager-{version}.dmg
+          mv "$DMG_PATH" "build/Notimanager-${VERSION}.dmg"
+          DMG_PATH="build/Notimanager-${VERSION}.dmg"
 
           # Get file size
           DMG_SIZE=$(stat -f%z "$DMG_PATH" 2>/dev/null || stat -c%s "$DMG_PATH" 2>/dev/null)
@@ -227,6 +249,7 @@ jobs:
           name: Notimanager ${{ steps.version.outputs.version }}
           body_path: release_notes_full.md
           files: |
+            ${{ env.ZIP_PATH }}
             ${{ env.DMG_PATH }}
           draft: false
           prerelease: false
@@ -238,8 +261,8 @@ jobs:
           echo "🎉 Release created successfully!"
           echo ""
           echo "📦 Version: ${{ steps.version.outputs.version }}"
-          echo "📁 DMG: ${{ env.DMG_PATH }}"
-          echo "📊 Size: ${{ env.DMG_SIZE }} bytes"
+          echo "📁 ZIP: ${{ env.ZIP_PATH }} (${{ env.ZIP_SIZE }} bytes) - For AppUpdater"
+          echo "📁 DMG: ${{ env.DMG_PATH }} (${{ env.DMG_SIZE }} bytes) - For direct download"
           echo ""
           echo "🔐 Code signing: Self-signed (CI certificate)"
           echo "📋 Release: https://github.com/abd3lraouf/Notimanager/releases/tag/${{ steps.version.outputs.tag }}"
