@@ -1,5 +1,20 @@
 # Notimanager
 
+> [!WARNING]
+> **Notimanager is retired and no longer maintained.**
+>
+> Use [NotificationNanny](https://github.com/chessper53/NotificationNanny) instead. It does everything
+> Notimanager did and much more: nine positions per display, per-app rules, banner scaling and tinting,
+> animations, pause during Focus, and support for macOS 26 and 27.
+>
+> ```sh
+> brew tap chessper53/notificationnanny https://github.com/chessper53/NotificationNanny
+> brew install --cask notificationnanny
+> ```
+>
+> To remove Notimanager, quit it from the menu bar and move `Notimanager.app` from Applications to the Trash.
+
+
 **Take control of your macOS notifications.**
 
 Notimanager gives you the power to decide where notifications appear on your screen. No more blocking your browser tabs, game HUDs, or important tools in the top-right corner.
